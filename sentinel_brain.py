@@ -17,10 +17,10 @@ def set_keyboard_color(status):
     try:
         if status == "MALICIOUS":
             # Red Static (Red: ff, Green: 00, Blue: 00)
-            cmd = f'echo "{S_PASS}" | sudo -S asusctl led-mode static -c ff0000'
+            cmd = f'echo "{S_PASS}" | sudo -S asusctl aura effect static -c ff0000'
         else:
             # Blue Static (Red: 00, Green: 00, Blue: ff)
-            cmd = f'echo "{S_PASS}" | sudo -S asusctl led-mode static -c 0000ff'
+            cmd = f'echo "{S_PASS}" | sudo -S asusctl aura effect static -c 0000ff'
         subprocess.run(cmd, shell=True, check=False, capture_output=True)
     except Exception as e:
         print(f"Error controlling hardware: {e}")

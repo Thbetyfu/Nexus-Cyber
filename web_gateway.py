@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for
 import os
 import ollama
 import subprocess
+import threading
 
 app = Flask(__name__)
 UPLOAD_FOLDER = '/home/taqy/Nexus-Cyber/quarantine'
@@ -14,12 +15,39 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 def set_hardware_alert(status):
     try:
         if status == "MALICIOUS":
-            cmd = f'echo "{S_PASS}" | sudo -S asusctl led-mode static -c ff0000'
+            cmd = f'echo "{S_PASS}" | sudo -S asusctl aura effect static -c ff0000'
         else:
-            cmd = f'echo "{S_PASS}" | sudo -S asusctl led-mode static -c 0000ff'
+            cmd = f'echo "{S_PASS}" | sudo -S asusctl aura effect static -c 0000ff'
         subprocess.run(cmd, shell=True, check=False)
     except:
         pass
+
+def detonate_file(filepath):
+    """
+    Sandbox execution (Auto-Detonate) in a secure environment.
+    Uses Firejail to prevent network access and disk changes outside quarantine.
+    """
+    try:
+        filename = os.path.basename(filepath)
+        print(f"[*] Auto-Detonate initialized for: {filename}")
+        
+        # Step 3: Make executable
+        os.chmod(filepath, 0o755)
+        
+        # Step 4 & 5: Run in Firejail sandbox with 10s timeout
+        subprocess.run(
+            ["firejail", "--quiet", "--net=none", f"--private={UPLOAD_FOLDER}", filepath],
+            timeout=10,
+            check=False,
+            capture_output=True # Silent execution
+        )
+        print(f"[+] Detonation process finished for {filename}")
+        
+    except subprocess.TimeoutExpired:
+        print(f"[!] Detonation Timeout: {os.path.basename(filepath)} was killed after 10s.")
+    except Exception as e:
+        # Step 7: Handle non-executable or error cases
+        print(f"[!] Detonation Error for {os.path.basename(filepath)}: {e}")
 
 def scan_file(filepath):
     filename = os.path.basename(filepath)
@@ -64,6 +92,11 @@ def upload_file():
     if file:
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
         file.save(filepath)
+        
+        # Step 6: Start detonation in a background thread to avoid lag
+        detonation_thread = threading.Thread(target=detonate_file, args=(filepath,))
+        detonation_thread.start()
+        
         result = scan_file(filepath)
         return render_template('upload.html', message=result)
 
