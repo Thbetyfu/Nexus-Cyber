@@ -114,3 +114,14 @@ Nexus-Cyber/
 
 ## ⚖️ License
 This project is built for security research and ethical defensive demonstration. **Use responsibly.**
+
+---
+
+## 🛠️ Pengembangan Lanjutan (Future Roadmaps)
+Berikut adalah rencana pengembangan untuk meningkatkan kemampuan Nexus-Cyber:
+1. **Automated Containment**: Implementasi fitur *Auto-Kill* pada PID mencurigakan dan blokir IP via *Firewall* secara otomatis.
+2. **Deep Forensic Sandbox**: Analisis trafik jaringan (`PCAP`) di dalam sandbox dan deteksi perubahan file sistem secara mendalam.
+3. **Visualization 2.0**: Dashboard interaktif dengan peta serangan *Real-time* dan analitik riwayat ancaman.
+4. **Hardware Safety**: Kontrol fan otomatis (Turbo Mode) dan *CPU Throttling* saat mendeteksi beban kerja ilegal (seperti cryptomining).
+5. **Remote Alerts**: Integrasi Bot Telegram/Discord untuk notifikasi ancaman saat pengguna tidak berada di depan laptop.
+6. **LLM Optimization**: Penggunaan model AI yang lebih ringan dan spesifik untuk keamanan guna meningkatkan kecepatan klasifikasi log.
