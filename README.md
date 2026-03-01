@@ -4,32 +4,39 @@
 ![OS](https://img.shields.io/badge/OS-Pop!_OS%2024.04-blue?style=for-the-badge&logo=popos)
 ![Hardware](https://img.shields.io/badge/Hardware-ASUS%20TUF%20Integration-red?style=for-the-badge&logo=asus)
 
-**Nexus-Cyber** is an advanced, autonomous security monitoring system designed for **ASUS TUF Gaming** laptops running **Pop!_OS**. It combines low-level kernel observability with modern Large Language Models (LLMs) and physical hardware feedback to create a truly interactive defense environment.
+**Nexus-Cyber** is an advanced, autonomous security monitoring system designed for **ASUS TUF Gaming** laptops running **Pop!_OS**. It combines low-level kernel observability with modern Large Language Models (LLMs), sandboxed detonation, and physical hardware feedback to create a truly interactive defense environment.
 
 ---
 
 ## 🚀 Key Features
 
 ### 🔍 1. Tetragon eBPF Monitoring
-The system hooks into the Linux kernel using **Cilium Tetragon**. It monitors critical syscalls in real-time, specifically:
+The system hooks into the Linux kernel using **Cilium Tetragon**. It monitors critical syscalls in real-time:
 - `sys_openat`: Tracking every file access attempt.
 - `sys_connect`: Monitoring all outgoing network connections.
-Logs are exported in JSON format for instant AI processing.
+Logs are streamed in JSON format for instant AI processing.
 
 ### 🧠 2. Sentinel-Brain (AI Analyst)
-The "brain" of the operation. A custom Python engine that reads Tetragon logs and feeds them into **Ollama (Llama 3)**.
-- **Real-time Classification**: Every log entry is analyzed by AI.
-- **Threat Labeling**: AI classifies events as `CLEAN` or `MALICIOUS`.
-- **Automated Logging**: Suspicious activities are instantly recorded in `/logs/alerts.txt`.
+The AI engine based on **Ollama (Llama 3)** that classifies events as `CLEAN` or `MALICIOUS`. It acts as the central command for both syscall logs and uploaded file analysis.
 
-### 🚨 3. Hardware-Alert Sync (The "Cool" Factor)
-Integrated directly with **`asusctl`**. If the AI detects a `MALICIOUS` intent, your laptop's physical keyboard will instantly:
-- 🔴 **Flash Red**: Visual warning of an active threat.
-- 🔵 **Return to Blue**: When the environment is safe.
+### 🚨 3. Hardware-Alert Sync
+Integrated directly with **`asusctl`** (Aura Sync). If a threat is detected:
+- 🔴 **Keyboard Glows Red**: Immediate physical feedback.
+- 🔵 **Keyboard Returns to Blue**: Normal status restored.
 
-### 🌐 4. The Universal Bridge (Web Gateway)
-A built-in **Flask** web server that allows any device on the same Wi-Fi to upload files to a `/quarantine` folder. 
-- **Auto-Scan**: Every upload is instantly analyzed by Llama 3 for malware patterns.
+### 🌐 4. Military Defense Dashboard (Real-Time UI)
+A futuristic, military-style web portal built with **Tailwind CSS**.
+- **Live Polling**: Frontend pings the backend every 2s for status updates.
+- **Visual Alert**: If a breach occurs, the entire UI turns into a red-flashing **"SYSTEM LOCKED"** warning.
+
+### ☢️ 5. Auto-Detonate (Sandboxing)
+Every file uploaded remains isolated. The system automatically creates a **Firejail Sandbox**:
+- **Network Isolation**: `--net=none` to prevent data exfiltration.
+- **Restricted Access**: `--private` directory to protect the host OS.
+- **Auto-Kill**: 10-second execution timeout before the process is force-killed.
+
+### 👻 6. Ghost Mode (Automated Persistence)
+Runs natively as a Linux **systemd daemon**. The system starts automatically at boot, ensuring your laptop is always protected.
 
 ---
 
@@ -38,14 +45,16 @@ A built-in **Flask** web server that allows any device on the same Wi-Fi to uplo
 ```mermaid
 graph TD
     User((User/Attacker)) -->|Upload File| Web[Web Gateway Port:5000]
-    Web -->|Save to| Quaran[/quarantine/]
+    Web -->|Save & Sandbox| Quaran[/quarantine/]
+    Quaran -->|Auto-Detonate| Firejail[Firejail Sandbox]
     Kernel[Linux Kernel eBPF] -->|Syscall Logs| Tetra[Tetragon Engine]
     Tetra -->|JSON Stream| SB[Sentinel-Brain AI Analyst]
-    Quaran -->|Scan Snippet| SB
     SB -->|Prompts| Llama[Ollama Llama 3]
     Llama -->|Malicious/Clean| SB
-    SB -->|Alerts| Logs[(Alert Logs)]
-    SB -->|Trigger| Hardware[ASUS Keyboard RGB Sync]
+    SB -->|Alerts| Logs[(Alert Logs/alerts.txt)]
+    SB -->|Trigger| Hardware[ASUS aura effect static]
+    Web -->|Poll Status| Logs
+    Logs -->|Danger Alert| UI[Flashing Red Lockdown UI]
 ```
 
 ---
@@ -53,43 +62,52 @@ graph TD
 ## 📦 Requirements
 
 - **OS**: Pop!_OS 24.04 (Noble) or Ubuntu-based.
-- **Hardware**: ASUS TUF Gaming Laptop (for `asusctl` integration).
-- **Core Tools**:
-  - `ollama` (with `llama3` model)
-  - `tetragon` (eBPF Engine)
-  - `asusctl` (ROG/TUF Control)
-  - `python3` (Flask, ollama-python)
+- **Hardware**: ASUS TUF/ROG Laptop (for `asusctl`).
+- **Tools**:
+  - `ollama` (Llama 3)
+  - `firejail` (Sandbox)
+  - `tetragon` (eBPF)
+  - `asusctl` (Hardware)
 
 ---
 
-## 🚦 Getting Started
+## 🚦 Deployment (Ghost Mode)
 
-1. **Deploy the Security Engine**:
+To set up Nexus-Cyber as an autonomous background service:
+
+1. **Install Service**:
    ```bash
-   # Run the AI analyst
-   nohup ./venv/bin/python3 -u sentinel_brain.py > logs/sentinel.log 2>&1 &
+   chmod +x start_ghost.sh
+   sudo cp nexus-sentinel.service /etc/systemd/system/
    ```
 
-2. **Open the Web Gateway**:
+2. **Initialize Defense**:
    ```bash
-   # Start the upload portal
-   nohup ./venv/bin/python3 -u web_gateway.py > logs/web.log 2>&1 &
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now nexus-sentinel.service
    ```
 
-3. **Access the Portal**:
-   Find your IP with `hostname -I` and access it from any browser on `http://YOUR_IP:5000`.
+3. **Monitor Activity**:
+   ```bash
+   # View AI internal logic
+   tail -f logs/sentinel.log
+   # View Web Gateway traffic
+   tail -f logs/web.log
+   ```
 
 ---
 
 ## 📂 Project Structure
 ```text
 Nexus-Cyber/
-├── web_gateway.py      # Flask Server & File Scanner
-├── sentinel_brain.py   # AI Log Analyst & Hardware Sync
-├── tetragon-policy.yaml# eBPF Policy Definitions
-├── templates/          # Web UI Files
-├── logs/               # AI Alerts & Audit Logs
-└── quarantine/         # Files pending AI analysis
+├── web_gateway.py        # Flask UI & Sandbox Detonator
+├── sentinel_brain.py     # AI Log Analyst & Hardware Sync
+├── start_ghost.sh        # Background Daemon Script
+├── nexus-sentinel.service# Systemd Service Definition
+├── tetragon-policy.yaml  # eBPF Kernel Policy
+├── templates/            # Cyber Dashboard (HTML/JS)
+├── logs/                 # AI Alerts & Audit Logs
+└── quarantine/           # Isolated Sandbox Directory
 ```
 
 ---
