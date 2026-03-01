@@ -58,11 +58,16 @@ def scan_file(filepath):
     except:
         snippet = "Binary/Unreadable content"
 
-    prompt = f"Analyze this uploaded file metadata and content snippet. Filename: {filename}\nSnippet: {snippet}\nRespond ONLY with 'MALICIOUS' or 'CLEAN'."
+    prompt = (
+        f"Analyze this uploaded file metadata and content snippet. Filename: {filename}\nSnippet: {snippet}\n"
+        "Context: If the file is a standard image (jpg, png) or the snippet says 'Binary/Unreadable content', "
+        "it is highly likely CLEAN unless there is explicit malware metadata. "
+        "Respond ONLY with 'MALICIOUS' if there is clear evidence of a script or exploit, otherwise respond with 'CLEAN'."
+    )
     
     try:
         response = ollama.chat(model=MODEL, messages=[
-            {'role': 'system', 'content': 'You are a malware analysis engine. Answer ONLY "MALICIOUS" or "CLEAN".'},
+            {'role': 'system', 'content': 'You are a malware analysis engine. Do NOT flag standard media/image files as malicious unless explicit script/exploit code is found. Answer ONLY "MALICIOUS" or "CLEAN".'},
             {'role': 'user', 'content': prompt}
         ])
         result = response['message']['content'].strip().upper()
