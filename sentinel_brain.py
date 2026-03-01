@@ -32,7 +32,7 @@ def analyze_with_ai(content_desc, source_name):
         '"binary": "/usr/lib', '"binary": "/usr/bin', '"binary": "/bin',
         '"binary": "/usr/sbin/chronyd', '"binary": "/usr/sbin',
         '"binary": "/home/taqy/Nexus-Cyber/venv/bin/python3"',
-        '"binary": "/usr/share/antigravity'
+        '"binary": "/usr/share/antigravity', '"binary": "/usr/local/bin/ollama'
     ]
     
     if any(item in content_desc for item in system_whitelist):
