@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, jsonify
 import os
+import json
 import ollama
 import subprocess
 import threading
@@ -66,29 +67,43 @@ def scan_file(filepath):
     except:
         snippet = "Binary/Unreadable content"
 
+    # Enhanced AI Prompt for structured forensics
     prompt = (
         f"Analyze this uploaded file metadata and content snippet. Filename: {filename}\nSnippet: {snippet}\n"
-        "Context: If the file is a standard image (jpg, png) or the snippet says 'Binary/Unreadable content', "
-        "it is highly likely CLEAN unless there is explicit malware metadata. "
-        "Respond ONLY with 'MALICIOUS' if there is clear evidence of a script or exploit, otherwise respond with 'CLEAN'."
+        "If it looks like an active exploit or binary malware, respond ONLY with a valid JSON in this format: "
+        '{"status": "MALICIOUS" or "CLEAN", "reason": "Short explanation", "action": "Action taken"}'
     )
     
     try:
         response = ollama.chat(model=MODEL, messages=[
-            {'role': 'system', 'content': 'You are a malware analysis engine. Do NOT flag standard media/image files as malicious unless explicit script/exploit code is found. Answer ONLY "MALICIOUS" or "CLEAN".'},
+            {'role': 'system', 'content': 'You are a malware analysis engine. Output JSON only.'},
             {'role': 'user', 'content': prompt}
         ])
-        result = response['message']['content'].strip().upper()
-        if "MALICIOUS" in result:
+        raw_result = response['message']['content'].strip()
+        start = raw_result.find('{')
+        end = raw_result.rfind('}') + 1
+        analysis = json.loads(raw_result[start:end])
+        
+        if analysis.get("status") == "MALICIOUS" or "MALICIOUS" in raw_result.upper():
+            alert_data = {
+                "timestamp": threading.current_thread().name, # Placeholder or actual time
+                "status": "MALICIOUS",
+                "reason": analysis.get("reason", "Malicious file detected"),
+                "action": analysis.get("action", "File quarantined and sandbox killed"),
+                "raw_file": filename
+            }
+            with open("/home/taqy/Nexus-Cyber/logs/detailed_alerts.log", "a") as df:
+                df.write(json.dumps(alert_data) + "\n")
+            
             with open(ALERT_FILE, 'a') as f:
                 f.write(f"--- UPLOAD ALERT ---\nFile: {filename}\nStatus: MALICIOUS\n")
             set_hardware_alert("MALICIOUS")
-            return "File flagged as MALICIOUS by Llama 3!"
+            return f"ALERT: {analysis.get('reason')}"
         else:
             set_hardware_alert("CLEAN")
             return "File scanned and marked as CLEAN."
     except Exception as e:
-        return f"Scan failed: {str(e)}"
+        return f"Scan failed or JSON error: {str(e)}"
 
 @app.route('/')
 def index():
@@ -96,21 +111,25 @@ def index():
 
 @app.route('/status')
 def get_status():
-    """Poll for the latest alert status."""
-    if not os.path.exists(ALERT_FILE):
+    """Poll for the latest detailed alert status."""
+    detailed_log = "/home/taqy/Nexus-Cyber/logs/detailed_alerts.log"
+    if not os.path.exists(detailed_log):
         return jsonify({"status": "safe"})
     
     try:
-        with open(ALERT_FILE, 'r') as f:
+        with open(detailed_log, 'r') as f:
             lines = f.readlines()
             if not lines:
                 return jsonify({"status": "safe"})
             
-            # Look for 'MALICIOUS' in the last few lines or last block
-            num_lines = len(lines)
-            last_lines = "".join(lines[max(0, num_lines - 10):])
-            if "MALICIOUS" in last_lines:
-                return jsonify({"status": "danger"})
+            # Get the very last detailed entry
+            last_entry = json.loads(lines[-1])
+            if last_entry.get("status") == "MALICIOUS":
+                return jsonify({
+                    "status": "danger",
+                    "reason": last_entry.get("reason"),
+                    "action": last_entry.get("action")
+                })
     except:
         pass
     

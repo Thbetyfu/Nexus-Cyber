@@ -26,33 +26,41 @@ def set_keyboard_color(status):
         print(f"Error controlling hardware: {e}")
 
 def analyze_with_ai(content_desc, source_name):
-    """Send log or file info to Llama 3 for analysis."""
+    """Send log or file info to Llama 3 for structured forensic analysis."""
     # Pre-filter for system binaries to avoid noise
     if '"binary": "/usr/lib' in content_desc or '"binary": "/usr/bin' in content_desc:
-        return False
+        return {"status": "SAFE"}
         
-    # Ignore our own python processes from the virtual environment
+    # Ignore our own python processes and the IDE/Antigravity from the logs
     if '"binary": "/home/taqy/Nexus-Cyber/venv/bin/python3"' in content_desc:
-        return False
+        return {"status": "SAFE"}
+    if '"binary": "/usr/share/antigravity' in content_desc:
+        return {"status": "SAFE"}
         
     prompt = (
         f"Analyze this data for security threats. Source: {source_name}. "
         "Context: This is a Pop!_OS Linux system. Ignore standard system background processes. "
-        "If it looks like an active exploit, unauthorized data extraction (like cat /etc/shadow), "
-        "or a typical malware payload, respond ONLY with 'MALICIOUS'. Otherwise, respond with 'CLEAN'.\n\n"
-        f"Data: {content_desc}"
+        "If it looks like an active exploit, unauthorized data extraction, or a typical malware payload, flag it. "
+        "You MUST respond ONLY with a valid JSON object in this format: "
+        '{"status": "MALICIOUS" or "SAFE", "reason": "Short explanation (max 2 sentences)", "action": "System action taken"}'
+        f"\n\nData: {content_desc}"
     )
     
     try:
         response = ollama.chat(model=MODEL, messages=[
-            {'role': 'system', 'content': 'You are a cybersecurity expert. Do NOT flag standard system services as malicious. Respond ONLY "MALICIOUS" or "CLEAN".'},
+            {'role': 'system', 'content': 'You are a cybersecurity expert. Response MUST be valid JSON only. No prose.'},
             {'role': 'user', 'content': prompt},
         ])
-        result = response['message']['content'].strip().upper()
-        return "MALICIOUS" in result
+        raw_content = response['message']['content'].strip()
+        # Find JSON boundaries just in case AI adds fluff
+        start = raw_content.find('{')
+        end = raw_content.rfind('}') + 1
+        if start != -1 and end != 0:
+            return json.loads(raw_content[start:end])
+        return {"status": "SAFE"}
     except Exception as e:
-        print(f"AI Error: {e}")
-        return False
+        print(f"AI/JSON Parsing Error: {e}")
+        return {"status": "SAFE"}
 
 def watch_quarantine():
     """Monitor industrial quarantine folder for new uploads."""
@@ -81,13 +89,27 @@ def follow_logs():
                     "args": data.get("process_kprobe", {}).get("args")
                 }
                 
-                if analyze_with_ai(json.dumps(simplified), "Tetragon Log"):
+                analysis = analyze_with_ai(json.dumps(simplified), "Tetragon Log")
+                
+                if analysis.get("status") == "MALICIOUS":
                     print(f"[!] MALICIOUS ACTIVITY: {simplified['binary']}")
                     set_keyboard_color("MALICIOUS")
+                    
+                    # Store detailed log
+                    alert_data = {
+                        "timestamp": time.ctime(),
+                        "status": "MALICIOUS",
+                        "reason": analysis.get("reason", "Suspicious syscall detected"),
+                        "action": analysis.get("action", "Process monitored and logged"),
+                        "raw_binary": simplified['binary']
+                    }
+                    
+                    with open("/home/taqy/Nexus-Cyber/logs/detailed_alerts.log", "a") as df:
+                        df.write(json.dumps(alert_data) + "\n")
+                        
                     with open(ALERT_FILE, 'a') as af:
                         af.write(f"[{time.ctime()}] MALICIOUS SYSCALL: {line}\n")
-                else:
-                    set_keyboard_color("CLEAN")
+                # Removed 'else' to latch alert as per previous fix
                     
             except Exception as e:
                 pass
