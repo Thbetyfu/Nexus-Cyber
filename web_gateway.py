@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, jsonify
 import os
 import ollama
 import subprocess
@@ -80,6 +80,28 @@ def scan_file(filepath):
 @app.route('/')
 def index():
     return render_template('upload.html')
+
+@app.route('/status')
+def get_status():
+    """Poll for the latest alert status."""
+    if not os.path.exists(ALERT_FILE):
+        return jsonify({"status": "CLEAN"})
+    
+    try:
+        with open(ALERT_FILE, 'r') as f:
+            lines = f.readlines()
+            if not lines:
+                return jsonify({"status": "CLEAN"})
+            
+            # Look for 'MALICIOUS' in the last few lines or last block
+            num_lines = len(lines)
+            last_lines = "".join(lines[max(0, num_lines - 10):])
+            if "MALICIOUS" in last_lines:
+                return jsonify({"status": "MALICIOUS"})
+    except:
+        pass
+    
+    return jsonify({"status": "CLEAN"})
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
