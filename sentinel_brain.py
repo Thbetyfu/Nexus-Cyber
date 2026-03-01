@@ -27,16 +27,25 @@ def set_keyboard_color(status):
 
 def analyze_with_ai(content_desc, source_name):
     """Send log or file info to Llama 3 for analysis."""
+    # Pre-filter for system binaries to avoid noise
+    if '"binary": "/usr/lib' in content_desc or '"binary": "/usr/bin' in content_desc:
+        return False
+        
+    # Ignore our own python processes from the virtual environment
+    if '"binary": "/home/taqy/Nexus-Cyber/venv/bin/python3"' in content_desc:
+        return False
+        
     prompt = (
         f"Analyze this data for security threats. Source: {source_name}. "
-        "If it looks malicious, suspicious, or contains potential malware/exploit code, "
-        "respond ONLY with 'MALICIOUS'. Otherwise, respond with 'CLEAN'.\n\n"
+        "Context: This is a Pop!_OS Linux system. Ignore standard system background processes. "
+        "If it looks like an active exploit, unauthorized data extraction (like cat /etc/shadow), "
+        "or a typical malware payload, respond ONLY with 'MALICIOUS'. Otherwise, respond with 'CLEAN'.\n\n"
         f"Data: {content_desc}"
     )
     
     try:
         response = ollama.chat(model=MODEL, messages=[
-            {'role': 'system', 'content': 'You are a cybersecurity engine for an ASUS TUF laptop. Respond ONLY with "MALICIOUS" or "CLEAN".'},
+            {'role': 'system', 'content': 'You are a cybersecurity expert. Do NOT flag standard system services as malicious. Respond ONLY "MALICIOUS" or "CLEAN".'},
             {'role': 'user', 'content': prompt},
         ])
         result = response['message']['content'].strip().upper()
