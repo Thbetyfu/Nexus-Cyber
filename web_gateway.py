@@ -51,6 +51,14 @@ def detonate_file(filepath):
 
 def scan_file(filepath):
     filename = os.path.basename(filepath)
+    ext = os.path.splitext(filename)[1].lower()
+    
+    # Bypass AI for known safe binary/image extensions
+    safe_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.mp4', '.mp3']
+    if ext in safe_extensions:
+        set_hardware_alert("CLEAN")
+        return f"File scanned ({ext}) and marked as CLEAN (AI Bypass)."
+
     # Read first 2KB of file for context
     try:
         with open(filepath, 'rb') as f:
