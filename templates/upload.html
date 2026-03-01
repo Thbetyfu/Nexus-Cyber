@@ -4,140 +4,205 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nexus-Cyber | Defender Portal</title>
+    <title>MILITARY DEFENSE SYSTEM | NEXUS-CYBER</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
     <style>
         body {
-            font-family: 'Fira Code', monospace;
-            background-color: #050505;
+            font-family: 'Share Tech Mono', monospace;
+            background-color: #030303;
+            background-image:
+                linear-gradient(rgba(0, 255, 65, 0.05) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 255, 65, 0.05) 1px, transparent 1px);
+            background-size: 30px 30px;
         }
 
-        .scan-glow {
-            box-shadow: 0 0 20px rgba(0, 255, 65, 0.2);
+        .scanline {
+            width: 100%;
+            height: 2px;
+            background: rgba(0, 255, 65, 0.1);
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 100;
+            animation: scan 4s linear infinite;
         }
 
-        .danger-glow {
-            box-shadow: 0 0 30px rgba(255, 0, 0, 0.6);
-        }
+        @keyframes scan {
+            0% {
+                top: 0;
+            }
 
-        .neon-text-green {
-            text-shadow: 0 0 10px rgba(34, 197, 94, 0.8);
-        }
-
-        .neon-text-red {
-            text-shadow: 0 0 10px rgba(239, 68, 68, 0.8);
-        }
-
-        @keyframes pulse-red {
-
-            0%,
             100% {
-                background-color: rgba(255, 0, 0, 0.1);
+                top: 100%;
+            }
+        }
+
+        .neon-border {
+            border: 1px solid #10b981;
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.3);
+        }
+
+        .alert-bg {
+            animation: flash-red 0.5s infinite;
+        }
+
+        @keyframes flash-red {
+            0% {
+                background-color: rgba(127, 29, 29, 0.9);
             }
 
             50% {
-                background-color: rgba(255, 0, 0, 0.4);
+                background-color: rgba(220, 38, 38, 1);
+            }
+
+            100% {
+                background-color: rgba(127, 29, 29, 0.9);
             }
         }
 
-        .animate-pulse-red {
-            animation: pulse-red 1.5s infinite;
+        .btn-military {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid #10b981;
+            transition: all 0.3s;
+        }
+
+        .btn-military:hover {
+            background: #10b981;
+            color: #000;
+            box-shadow: 0 0 20px #10b981;
+        }
+
+        .glitch-text {
+            color: #10b981;
+            text-shadow: 2px 2px #000;
         }
     </style>
 </head>
 
-<body class="text-gray-300 min-h-screen flex flex-col items-center justify-center p-4 transition-colors duration-500"
-    id="main-body">
+<body class="relative min-h-screen flex flex-col items-center justify-center p-6 select-none overflow-hidden">
+    <div class="scanline"></div>
 
-    <!-- Emergency Overlay -->
-    <div id="danger-overlay"
-        class="fixed inset-0 z-50 pointer-events-none hidden flex flex-col items-center justify-center bg-red-900 bg-opacity-30 border-[20px] border-red-600 animate-pulse-red">
-        <h1 class="text-white text-6xl md:text-9xl font-black neon-text-red mb-4">BREACH DETECTED</h1>
-        <p class="text-white text-2xl md:text-4xl font-bold uppercase tracking-widest">Malicious Code Executed in
-            Sandbox</p>
+    <!-- LOCKDOWN OVERLAY -->
+    <div id="lockdown-overlay"
+        class="fixed inset-0 z-[1000] alert-bg hidden flex flex-col items-center justify-center text-white text-center p-4">
+        <div class="space-y-6 max-w-4xl border-8 border-white p-12 bg-black bg-opacity-40">
+            <h1 class="text-6xl md:text-8xl font-black mb-4 tracking-tighter">🚨 THREAT DETECTED 🚨</h1>
+            <div class="h-2 bg-white w-full animate-pulse"></div>
+            <h2 class="text-4xl md:text-6xl font-bold uppercase underline">SYSTEM LOCKED</h2>
+            <p class="text-xl md:text-2xl mt-8 font-mono tracking-widest">MALICIOUS PAYLOAD IDENTIFIED BY LLAMA-3
+                AUTO-MODERATOR</p>
+            <div class="grid grid-cols-2 gap-4 mt-8 text-black font-bold">
+                <div class="bg-white p-2">STATUS: COMPROMISED</div>
+                <div class="bg-white p-2">SECURITY: LVL 5</div>
+            </div>
+        </div>
     </div>
 
-    <div
-        class="max-w-2xl w-full space-y-8 bg-zinc-900 bg-opacity-80 p-10 rounded-2xl border border-zinc-800 scan-glow relative overflow-hidden">
+    <div class="w-full max-w-3xl z-10">
+        <!-- Dashboard Container -->
+        <div class="bg-black bg-opacity-90 neon-border p-8 md:p-12 space-y-10 relative">
 
-        <!-- Header -->
-        <div class="text-center space-y-2 relative z-10">
-            <h1 class="text-4xl font-bold tracking-tighter text-green-500 neon-text-green">NEXUS-CYBER</h1>
-            <p class="text-zinc-500 text-sm uppercase tracking-[0.3em]">Autonomous Defense Gateway</p>
-        </div>
+            <!-- Corner Accents -->
+            <div class="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-emerald-400"></div>
+            <div class="absolute -top-1 -right-1 w-8 h-8 border-t-4 border-r-4 border-emerald-400"></div>
+            <div class="absolute -bottom-1 -left-1 w-8 h-8 border-b-4 border-l-4 border-emerald-400"></div>
+            <div class="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-emerald-400"></div>
 
-        <!-- System Monitor -->
-        <div class="grid grid-cols-2 gap-4 text-xs font-mono">
-            <div class="p-3 bg-black rounded border border-zinc-800">
-                <span class="text-zinc-500">ENGINE:</span> <span class="text-green-400">TETRAGON EBPF</span>
+            <!-- Top Branding -->
+            <div class="flex justify-between items-end border-b border-emerald-900 pb-4">
+                <div>
+                    <h1 class="text-3xl font-black text-emerald-500 tracking-tighter italic glitch-text">NEXUS-CYBER /
+                        DEFENSE</h1>
+                    <p class="text-[10px] text-emerald-800 tracking-[0.5em] mt-1">SITUATIONAL AWARENESS: STANDBY</p>
+                </div>
+                <div class="text-right text-emerald-600 text-[10px] leading-tight">
+                    <div>UID: NEX-{{ range(1000, 9999) | random }}</div>
+                    <div id="current-time">00:00:00</div>
+                </div>
             </div>
-            <div class="p-3 bg-black rounded border border-zinc-800">
-                <span class="text-zinc-500">ANALYSIS:</span> <span class="text-green-400">LLAMA-3 ACTIVE</span>
-            </div>
-        </div>
 
-        <!-- Upload Section -->
-        <div class="relative z-10">
-            <form action="/upload" method="POST" enctype="multipart/form-data" class="space-y-6">
-                <div class="group relative">
-                    <label for="file-upload"
-                        class="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-zinc-700 rounded-xl cursor-pointer hover:border-green-500 hover:bg-zinc-800 transition-all duration-300">
-                        <div class="flex flex-col items-center justify-center pt-5 pb-6">
-                            <svg class="w-10 h-10 mb-3 text-zinc-500 group-hover:text-green-400" fill="none"
-                                stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                    d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12">
+            <!-- System Info Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-2 text-[10px] text-emerald-400 opacity-70">
+                <div class="border border-emerald-900 p-2">SENSORS: TETRAGON_ACTIVE</div>
+                <div class="border border-emerald-900 p-2 text-center">CORE: LLAMA_3_CONNECTED</div>
+                <div class="border border-emerald-900 p-2 text-right">HW_SYNC: ASUS_TUF_READY</div>
+            </div>
+
+            <!-- Central Form -->
+            <div class="py-4">
+                <form action="/upload" method="POST" enctype="multipart/form-data" class="space-y-8">
+                    <div class="relative group">
+                        <input type="file" name="file" id="file-input" class="hidden" required>
+                        <label for="file-input"
+                            class="w-full h-48 border border-emerald-800 bg-emerald-950 bg-opacity-10 flex flex-col items-center justify-center cursor-pointer group-hover:bg-emerald-900 group-hover:bg-opacity-20 transition-all">
+                            <svg class="w-12 h-12 text-emerald-600 mb-4 group-hover:scale-110 transition-transform"
+                                fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1"
+                                    d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z">
                                 </path>
                             </svg>
-                            <p class="mb-2 text-sm text-zinc-400">DROP PAYLOAD FOR ANALYSIS</p>
-                            <p class="text-xs text-zinc-600 uppercase">Binary, Script, or Source</p>
-                        </div>
-                        <input id="file-upload" name="file" type="file" class="hidden" />
-                    </label>
-                </div>
+                            <span class="text-xs tracking-[0.3em] font-bold text-emerald-700">INSERT UNTRUSTED
+                                DATA</span>
+                            <span id="file-name" class="text-[10px] mt-2 text-white opacity-50">NO SOURCE
+                                SELECTED</span>
+                        </label>
+                    </div>
 
-                <button type="submit"
-                    class="w-full bg-green-900 bg-opacity-20 hover:bg-green-600 hover:text-black py-4 rounded-xl border border-green-500 text-green-500 font-bold tracking-widest transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-green-400">
-                    EXECUTE SECURE UPLOAD
-                </button>
-            </form>
-        </div>
+                    <button type="submit"
+                        class="w-full py-5 btn-military text-sm font-black tracking-[0.5em] text-emerald-400 uppercase">
+                        INITIATE DETONATION SCAN
+                    </button>
+                </form>
+            </div>
 
-        <!-- Status Result -->
-        {% if message %}
-        <div
-            class="p-4 rounded-lg text-center font-bold border-2 {% if 'MALICIOUS' in message %}bg-red-900 bg-opacity-20 border-red-500 text-red-500 neon-text-red{% else %}bg-green-900 bg-opacity-20 border-green-500 text-green-500 neon-text-green{% endif %}">
-            {{ message }}
-        </div>
-        {% endif %}
+            <!-- Analysis Message -->
+            {% if message %}
+            <div
+                class="border-2 {% if 'MALICIOUS' in message %}border-red-600 text-red-500 alert-pulse bg-red-950 bg-opacity-20{% else %}border-emerald-600 text-emerald-400 bg-emerald-950 bg-opacity-20{% endif %} p-4 text-center text-xs tracking-widest leading-relaxed">
+                <span class="font-black">[ RESULT ]</span>: {{ message }}
+            </div>
+            {% endif %}
 
-        <!-- Footer -->
-        <div class="text-center pt-4 opacity-30 text-[10px]">
-            &copy; 2026 NEXUS-CYBER / DEEP-AI INTEGRATION / ASUSTEK HW-SYNC
+            <!-- System Logs Footer -->
+            <div class="text-[8px] text-emerald-900 flex justify-between uppercase">
+                <span>// ENCRYPTION: AES-256V2</span>
+                <span>// DEPLOYED AT: /HOME/TAQY/NEXUS-CYBER</span>
+                <span>// AUTH: MIL-DEF-{{ range(10, 99) | random }}</span>
+            </div>
         </div>
     </div>
 
     <script>
-        // Real-time Status Polling
-        const dangerOverlay = document.getElementById('danger-overlay');
-        const mainBody = document.getElementById('main-body');
+        // Update Time
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('current-time').innerText = now.toTimeString().split(' ')[0];
+        }
+        setInterval(updateTime, 1000);
+        updateTime();
 
+        // File name display
+        const fileInput = document.getElementById('file-input');
+        fileInput.addEventListener('change', () => {
+            const name = fileInput.files[0] ? fileInput.files[0].name : "NO SOURCE SELECTED";
+            document.getElementById('file-name').innerText = name.toUpperCase();
+        });
+
+        // POLLING STATUS
+        const overlay = document.getElementById('lockdown-overlay');
         async function checkStatus() {
             try {
                 const response = await fetch('/status');
                 const data = await response.json();
 
-                if (data.status === 'MALICIOUS') {
-                    dangerOverlay.classList.remove('hidden');
-                    // Add extra shake effect
-                    mainBody.classList.add('bg-red-950');
+                if (data.status === 'danger') {
+                    overlay.classList.remove('hidden');
                 } else {
-                    dangerOverlay.classList.add('hidden');
-                    mainBody.classList.remove('bg-red-950');
+                    overlay.classList.add('hidden');
                 }
-            } catch (error) {
-                console.error('Polling error:', error);
+            } catch (e) {
+                console.error("Link error:", e);
             }
         }
 

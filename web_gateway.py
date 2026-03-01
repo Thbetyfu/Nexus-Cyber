@@ -85,23 +85,23 @@ def index():
 def get_status():
     """Poll for the latest alert status."""
     if not os.path.exists(ALERT_FILE):
-        return jsonify({"status": "CLEAN"})
+        return jsonify({"status": "safe"})
     
     try:
         with open(ALERT_FILE, 'r') as f:
             lines = f.readlines()
             if not lines:
-                return jsonify({"status": "CLEAN"})
+                return jsonify({"status": "safe"})
             
             # Look for 'MALICIOUS' in the last few lines or last block
             num_lines = len(lines)
             last_lines = "".join(lines[max(0, num_lines - 10):])
             if "MALICIOUS" in last_lines:
-                return jsonify({"status": "MALICIOUS"})
+                return jsonify({"status": "danger"})
     except:
         pass
     
-    return jsonify({"status": "CLEAN"})
+    return jsonify({"status": "safe"})
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
