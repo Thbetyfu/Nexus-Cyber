@@ -27,32 +27,33 @@ def set_keyboard_color(status):
 
 def analyze_with_ai(content_desc, source_name):
     """Send log or file info to Llama 3 for structured forensic analysis."""
-    # Pre-filter for system binaries to avoid noise
-    if '"binary": "/usr/lib' in content_desc or '"binary": "/usr/bin' in content_desc:
-        return {"status": "SAFE"}
-        
-    # Ignore our own python processes and the IDE/Antigravity from the logs
-    if '"binary": "/home/taqy/Nexus-Cyber/venv/bin/python3"' in content_desc:
-        return {"status": "SAFE"}
-    if '"binary": "/usr/share/antigravity' in content_desc:
+    # Pre-filter for common system binaries and activities to reduce noise
+    system_whitelist = [
+        '"binary": "/usr/lib', '"binary": "/usr/bin', '"binary": "/bin',
+        '"binary": "/usr/sbin/chronyd', '"binary": "/usr/sbin',
+        '"binary": "/home/taqy/Nexus-Cyber/venv/bin/python3"',
+        '"binary": "/usr/share/antigravity'
+    ]
+    
+    if any(item in content_desc for item in system_whitelist):
         return {"status": "SAFE"}
         
     prompt = (
-        f"Analyze this data for security threats. Source: {source_name}. "
-        "Context: This is a Pop!_OS Linux system. Ignore standard system background processes. "
-        "If it looks like an active exploit, unauthorized data extraction, or a typical malware payload, flag it. "
-        "You MUST respond ONLY with a valid JSON object in this format: "
-        '{"status": "MALICIOUS" or "SAFE", "reason": "Short explanation (max 2 sentences)", "action": "System action taken"}'
-        f"\n\nData: {content_desc}"
+        f"Analyze this Linux syscall log for ACTUAL malicious threats. Source: {source_name}.\n"
+        "IGNORE standard system processes like chronyd, systemd, or local shell commands starting from /bin/sh "
+        "UNLESS they are targeting sensitive files like /etc/shadow or /home/taqy/Nexus-Cyber/quarantine.\n"
+        "Focus on: Reverse shells, unauthorized data theft, or malware in /home/taqy/Nexus-Cyber/quarantine.\n"
+        "Respond ONLY with a valid JSON object:\n"
+        '{"status": "MALICIOUS" or "SAFE", "reason": "Short explanation", "action": "Action taken"}\n\n'
+        f"Data: {content_desc}"
     )
     
     try:
         response = ollama.chat(model=MODEL, messages=[
-            {'role': 'system', 'content': 'You are a cybersecurity expert. Response MUST be valid JSON only. No prose.'},
+            {'role': 'system', 'content': 'You are a professional SOC Analyst. Respond ONLY with valid JSON. Never flag standard OS maintenance as malicious.'},
             {'role': 'user', 'content': prompt},
         ])
         raw_content = response['message']['content'].strip()
-        # Find JSON boundaries just in case AI adds fluff
         start = raw_content.find('{')
         end = raw_content.rfind('}') + 1
         if start != -1 and end != 0:
