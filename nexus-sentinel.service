@@ -1,0 +1,18 @@
+[Unit]
+Description=Nexus-Cyber AI Autonomous Defense Service
+After=network.target tetragon.service asusd.service
+Documentation=https://github.com/Thbetyfu/Nexus-Cyber
+
+[Service]
+Type=forking
+User=root
+WorkingDirectory=/home/taqy/Nexus-Cyber
+ExecStart=/bin/bash /home/taqy/Nexus-Cyber/start_ghost.sh
+Restart=on-failure
+RestartSec=10
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=nexus-sentinel
+
+[Install]
+WantedBy=multi-user.target
