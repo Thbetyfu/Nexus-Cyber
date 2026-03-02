@@ -4,6 +4,7 @@ import json
 import ollama
 import subprocess
 import threading
+import time
 
 app = Flask(__name__)
 UPLOAD_FOLDER = '/home/taqy/Nexus-Cyber/quarantine'
@@ -86,10 +87,12 @@ def scan_file(filepath):
         
         if analysis.get("status") == "MALICIOUS" or "MALICIOUS" in raw_result.upper():
             alert_data = {
-                "timestamp": threading.current_thread().name, # Placeholder or actual time
+                "timestamp": time.ctime(),
                 "status": "MALICIOUS",
                 "reason": analysis.get("reason", "Malicious file detected"),
+                "timeline": analysis.get("timeline", ["1. File uploaded to server", "2. Static analysis flagged suspicious content"]),
                 "action": analysis.get("action", "File quarantined and sandbox killed"),
+                "network_target": analysis.get("network_target", {"ip": "N/A", "location": "N/A", "port": "N/A"}),
                 "raw_file": filename
             }
             with open("/home/taqy/Nexus-Cyber/logs/detailed_alerts.log", "a") as df:
@@ -128,7 +131,9 @@ def get_status():
                 return jsonify({
                     "status": "danger",
                     "reason": last_entry.get("reason"),
-                    "action": last_entry.get("action")
+                    "action": last_entry.get("action"),
+                    "timeline": last_entry.get("timeline", []),
+                    "network_target": last_entry.get("network_target", {})
                 })
     except:
         pass
