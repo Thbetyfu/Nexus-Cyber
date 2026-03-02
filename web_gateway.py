@@ -7,8 +7,8 @@ import subprocess
 import threading
 import time
 import shutil
-
-app = Flask(__name__)
+import shutil
+import sentinel_brain
 app = Flask(__name__)
 UPLOAD_FOLDER = '/home/taqy/Nexus-Cyber/quarantine'
 ALERT_FILE = '/home/taqy/Nexus-Cyber/logs/alerts.txt'
@@ -74,72 +74,13 @@ def detonate_file(filepath):
         # Step 7: Handle non-executable or error cases
         print(f"[!] Detonation Error for {os.path.basename(filepath)}: {e}")
 
-def scan_file(filepath):
-    filename = os.path.basename(filepath)
-    ext = os.path.splitext(filename)[1].lower()
-    
-    # Bypass AI for known safe binary/image extensions
-    safe_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.mp4', '.mp3']
-    if ext in safe_extensions:
-        # We don't change hardware alert here to avoid resetting other active threats
-        return f"File scanned ({ext}) and marked as CLEAN (AI Bypass)."
-
-    # Read first 2KB of file for context
+def initiate_background_analysis(filepath):
+    """Trigger the dynamic analysis workflow in the background."""
     try:
-        with open(filepath, 'rb') as f:
-            snippet = f.read(2048).decode('utf-8', errors='ignore')
-    except:
-        snippet = "Binary/Unreadable content"
-
-    # Enhanced AI Prompt for structured forensics
-    prompt = (
-        f"Analyze this uploaded file metadata and content snippet. Filename: {filename}\nSnippet: {snippet}\n"
-        "If it looks like an active exploit or binary malware, respond ONLY with a valid JSON in this format: "
-        '{"status": "MALICIOUS" or "CLEAN", "reason": "Short explanation", "action": "Action taken"}'
-    )
-    
-    try:
-        response = ollama.chat(model=MODEL, messages=[
-            {'role': 'system', 'content': 'You are a malware analysis engine. Output JSON only.'},
-            {'role': 'user', 'content': prompt}
-        ])
-        raw_result = response['message']['content'].strip()
-        start = raw_result.find('{')
-        end = raw_result.rfind('}') + 1
-        analysis = json.loads(raw_result[start:end])
-        
-        if analysis.get("status") == "MALICIOUS" or "MALICIOUS" in raw_result.upper():
-            # Get IP from session map if possible
-            target_ip = "UNKNOWN"
-            try:
-                if os.path.exists(SESSION_MAP_FILE):
-                    with open(SESSION_MAP_FILE, 'r') as sm:
-                        smap = json.load(sm)
-                        target_ip = smap.get(filename, "UNKNOWN")
-            except:
-                pass
-
-            alert_data = {
-                "timestamp": time.ctime(),
-                "status": "MALICIOUS",
-                "reason": analysis.get("reason", "Malicious file detected"),
-                "timeline": analysis.get("timeline", ["1. File uploaded to server", "2. Static analysis flagged suspicious content"]),
-                "action": analysis.get("action", "File quarantined and sandbox killed"),
-                "network_target": analysis.get("network_target", {"ip": "N/A", "location": "N/A", "port": "N/A"}),
-                "raw_file": filename,
-                "target_ip": target_ip
-            }
-            with open("/home/taqy/Nexus-Cyber/logs/detailed_alerts.log", "a") as df:
-                df.write(json.dumps(alert_data) + "\n")
-            
-            with open(ALERT_FILE, 'a') as f:
-                f.write(f"--- UPLOAD ALERT ---\nFile: {filename}\nStatus: MALICIOUS\nIP: {target_ip}\n")
-            set_hardware_alert("MALICIOUS")
-            return f"ALERT: {analysis.get('reason')}"
-        else:
-            return "File scanned and marked as CLEAN."
+        sentinel_brain.analyze_file_dynamic(filepath)
     except Exception as e:
-        return f"Scan failed or JSON error: {str(e)}"
+        print(f"[!] Background analysis error: {e}")
+
 
 @app.route('/')
 def index():
@@ -203,8 +144,11 @@ def upload_file():
         detonation_thread = threading.Thread(target=detonate_file, args=(filepath,))
         detonation_thread.start()
         
-        result = scan_file(filepath)
-        return render_template('upload.html', message=result)
+        # Step 7: Start dynamic AI analysis in background
+        analysis_thread = threading.Thread(target=initiate_background_analysis, args=(filepath,))
+        analysis_thread.start()
+        
+        return render_template('upload.html', message="File submitted. AI Forensic Analysis in progress...")
 
 @app.route('/upload-ajax', methods=['POST'])
 def upload_file_ajax():
@@ -233,10 +177,13 @@ def upload_file_ajax():
         detonation_thread = threading.Thread(target=detonate_file, args=(filepath,))
         detonation_thread.start()
         
-        result = scan_file(filepath)
-        if "ALERT" in result:
-            return jsonify({"status": "danger", "message": result})
-        return jsonify({"status": "success", "message": result})
+        # Step 7: Start dynamic AI analysis in background
+        analysis_thread = threading.Thread(target=initiate_background_analysis, args=(filepath,))
+        analysis_thread.start()
+        
+        # We always return success immediately so the frontend goes into "Scanning" state.
+        # The frontend will poll /status to get the final danger/safe result.
+        return jsonify({"status": "success", "message": "File submitted. Deep AI Scan in progress..."})
 
 @app.route('/admin')
 @requires_auth

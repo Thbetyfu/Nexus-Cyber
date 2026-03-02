@@ -37,10 +37,52 @@ def get_ip_location(ip):
         if data.get("status") == "success":
             return f"{data.get('city')}, {data.get('country')}"
         return "UNKNOWN LOCATION"
-    except:
+    except Exception as e:
+        print(f"Geo-IP Error: {e}")
         return "OFFLINE/TIMEOUT"
 
-def analyze_with_ai(content_desc, source_name):
+def scrape_tetragon_for_ip(filename, max_lines=500):
+    """
+    Search backwards through tetragon.json for the most recent network activity 
+    associated with the detonated filename. 
+    Looks specifically for 'sockaddr' or 'sin_addr' in the 'args' array.
+    """
+    if not os.path.exists(LOG_FILE):
+        return "Local/None"
+
+    try:
+        with open(LOG_FILE, 'r') as f:
+            lines = f.readlines()
+            
+            # Read from bottom to top (most recent first)
+            for line in reversed(lines[-max_lines:]):
+                if filename in line:
+                    try:
+                        data = json.loads(line)
+                        kprobe = data.get("process_kprobe", {})
+                        if isinstance(kprobe, dict):
+                            args = kprobe.get("args")
+                            if isinstance(args, list):
+                                # Search for sockaddr or sin_addr in arguments
+                                for arg in args:
+                                    if isinstance(arg, dict):
+                                        sockaddr = arg.get("sockaddr") or arg.get("sin_addr")
+                                        if sockaddr and isinstance(sockaddr, dict):
+                                            ip = sockaddr.get("addr")
+                                            if ip:
+                                                # Ignore IPv6 loopbacks and local unroutable
+                                                if ip in ["::1", "127.0.0.1", "0.0.0.0"]:
+                                                    continue
+                                                return ip
+                    except json.JSONDecodeError:
+                        continue
+    except Exception as e:
+        print(f"Error scraping Tetragon logs: {e}")
+        
+    return "Local/None"
+
+
+def analyze_with_ai(content_desc, source_name, injected_network=None):
     """Send log or file info to Llama 3 for structured forensic analysis."""
     # Pre-filter for common system binaries and activities to reduce noise
     system_whitelist = [
@@ -55,11 +97,22 @@ def analyze_with_ai(content_desc, source_name):
         
     prompt = (
         f"Role: Digital Forensic Expert Expert.\n"
-        f"Data Source: {source_name} (Kernel Syscalls via eBPF).\n"
-        "Instructions: Based on the provided log, reconstruct a Chronological Timeline of events. "
+        f"Data Source: {source_name} (Kernel Syscalls/File Metadata).\n"
+    )
+    
+    if injected_network and injected_network['ip'] != "Local/None":
+        prompt += (
+            f"CRITICAL INSTRUCTION: Gunakan data IP dan Lokasi yang saya berikan di bawah ini "
+            f"untuk mengisi field network_target di JSON Anda. JANGAN menulis N/A jika saya sudah memberikan datanya.\n"
+            f"IP Target: {injected_network['ip']}, Lokasi: {injected_network['location']}, Port: {injected_network.get('port', 'N/A')}.\n"
+            f"Pastikan timeline mencerminkan koneksi ke jaringan ini (contoh: 'Detected network attempt to {injected_network['ip']} ({injected_network['location']})').\n"
+        )
+
+    prompt += (
+        "Instructions: Based on the provided data, reconstruct a Chronological Timeline of events. "
         "Summarize specifically if there is evidence of exploitation, data access, or CNC connection. "
         "You MUST respond ONLY with a valid JSON in exactly this format:\n"
-        '{"status": "MALICIOUS" or "SAFE", "reason": "Overview", "timeline": ["step 1", "step 2", "step 3"], "action": "Countermeasure"}\n\n'
+        '{"status": "MALICIOUS" or "SAFE", "reason": "Overview", "timeline": ["step 1", "step 2", "step 3"], "action": "Countermeasure", "network_target": {"ip": "...", "location": "...", "port": "..."}}\n\n'
         f"Data: {content_desc}"
     )
     
@@ -78,9 +131,80 @@ def analyze_with_ai(content_desc, source_name):
         print(f"AI/JSON Parsing Error: {e}")
         return {"status": "SAFE"}
 
+def analyze_file_dynamic(filepath):
+    """
+    Synchronized forensic workflow:
+    1. Wait for Firejail execution (3 seconds).
+    2. Scrape Tetragon logs for networking IPs related to the file.
+    3. Geo-IP lookup.
+    4. Call Llama-3 with injected network data for a guaranteed complete JSON report.
+    """
+    filename = os.path.basename(filepath)
+    ext = os.path.splitext(filename)[1].lower()
+    
+    # Bypass AI for known safe binary/image extensions
+    safe_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.mp4', '.mp3']
+    if ext in safe_extensions:
+        return {"status": "CLEAN", "message": f"File scanned ({ext}) and marked as CLEAN (AI Bypass)."}
+
+    print(f"[*] analyze_file_dynamic sleeping for 3 seconds to harvest network logs for {filename}...")
+    time.sleep(3) # Wait for Firejail to finish or at least make the network call
+    
+    # Scrape Tetragon logs backwards
+    detected_ip = scrape_tetragon_for_ip(filename)
+    location = get_ip_location(detected_ip) if detected_ip != "Local/None" else "Local/None"
+    
+    injected_network = {
+        "ip": detected_ip,
+        "location": location,
+        "port": "N/A" # We can extrapolate or rely on Llama if it reads the log, but IP/Loc are the most important
+    }
+    
+    print(f"[+] Harvested Dynamic Data for {filename}: IP={detected_ip}, Loc={location}")
+
+    # Read first 2KB of file for context
+    try:
+        with open(filepath, 'rb') as f:
+            snippet = f.read(2048).decode('utf-8', errors='ignore')
+    except:
+        snippet = "Binary/Unreadable content"
+
+    # Let Llama 3 analyze the static file snippet + the dynamic network knowledge we just gathered
+    analysis = analyze_with_ai(snippet, f"File Content: {filename}", injected_network)
+    
+    if analysis.get("status") in ["MALICIOUS"]:
+        # Get session IP
+        target_ip = "UNKNOWN"
+        try:
+            if os.path.exists(SESSION_MAP_FILE):
+                with open(SESSION_MAP_FILE, 'r') as sm:
+                    smap = json.load(sm)
+                    target_ip = smap.get(filename, "UNKNOWN")
+        except:
+            pass
+
+        alert_data = {
+            "timestamp": time.ctime(),
+            "status": "MALICIOUS",
+            "reason": analysis.get("reason", "Malicious file detected based on dynamic behavior"),
+            "timeline": analysis.get("timeline", ["1. File execution monitored", "2. Suspicious activity flagged"]),
+            "action": analysis.get("action", "File quarantined and execution blocked"),
+            "network_target": analysis.get("network_target", injected_network),
+            "raw_file": filename,
+            "target_ip": target_ip
+        }
+
+        with open("/home/taqy/Nexus-Cyber/logs/detailed_alerts.log", "a") as df:
+            df.write(json.dumps(alert_data) + "\n")
+            
+        print(f"[!] DYNAMIC ANALYSIS DETECTED THREAT: {filename}")
+        set_keyboard_color("MALICIOUS")
+        
+    return analysis
+
 def watch_quarantine():
     """Monitor industrial quarantine folder for new uploads."""
-    # This function is used by the web server to trigger a scan
+    # This function is used by the web server to trigger a scan using async detonate_file
     pass
 
 def follow_logs():
