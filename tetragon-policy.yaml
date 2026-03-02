@@ -24,3 +24,19 @@ spec:
       type: "sockaddr"
     - index: 2
       type: "int"
+  - call: "sys_sendto"
+    syscall: true
+    args:
+    - index: 0
+      type: "int"
+    - index: 1
+      type: "char_buf"
+      sizeArgIndex: 2
+    - index: 2
+      type: "size_t"
+    - index: 3
+      type: "int"
+    - index: 4
+      type: "sockaddr"
+    - index: 5
+      type: "int"
