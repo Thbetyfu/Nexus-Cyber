@@ -111,33 +111,37 @@
     class="relative min-h-screen flex flex-col items-center justify-center p-6 select-none overflow-hidden transition-colors duration-1000">
     <div class="scanline"></div>
 
-    <div class="w-full max-w-2xl flex flex-col relative z-10 border border-red-900 bg-black bg-opacity-80 p-8 shadow-2xl"
+    <div class="w-full max-w-2xl flex flex-col relative z-10 border border-red-900 bg-black bg-opacity-80 p-4 sm:p-6 md:p-8 shadow-2xl mx-4 w-[calc(100%-2rem)] md:h-auto"
         id="panel-container">
 
         <!-- Header -->
-        <div class="flex justify-between items-center mb-8 border-b border-red-900 pb-4" id="panel-header">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 md:mb-8 border-b border-red-900 pb-4 gap-2 sm:gap-0"
+            id="panel-header">
             <div>
-                <h1 class="text-3xl font-black tracking-[0.3em] text-red-600 glitch-text" id="panel-title">ADMINISTRATOR
+                <h1 class="text-xl sm:text-2xl md:text-3xl font-black tracking-widest sm:tracking-[0.3em] text-red-600 glitch-text"
+                    id="panel-title">ADMINISTRATOR
                     OVERRIDE</h1>
-                <p class="text-red-800 text-xs tracking-widest mt-1 font-mono">// RESTRICTED ACCESS // LEVEL 5 CLEARANCE
+                <p class="text-red-800 text-[10px] sm:text-xs tracking-widest mt-1 font-mono break-words">// RESTRICTED
+                    ACCESS // LEVEL 5 CLEARANCE
                 </p>
             </div>
         </div>
 
         <!-- Warning Panel -->
-        <div class="bg-red-950 bg-opacity-30 border-l-4 border-red-600 p-4 mb-8" id="warning-box">
-            <h3 class="text-red-500 font-bold mb-2 uppercase tracking-wider">[!] System Status</h3>
-            <p class="text-red-400 text-sm font-mono" id="status-text">
+        <div class="bg-red-950 bg-opacity-30 border-l-4 border-red-600 p-3 md:p-4 mb-6 md:mb-8" id="warning-box">
+            <h3 class="text-red-500 font-bold mb-1 md:mb-2 uppercase tracking-wider text-sm md:text-base">[!] System
+                Status</h3>
+            <p class="text-red-400 text-xs md:text-sm font-mono" id="status-text">
                 Waiting for command. If the primary sensor network is locked in a MALICIOUS state, a manual purge is
                 required.
             </p>
         </div>
 
         <!-- Action Area -->
-        <div class="space-y-6">
+        <div class="space-y-4 md:space-y-6">
             <button id="btn-reset"
-                class="w-full py-6 btn-purge text-lg font-black tracking-[0.5em] text-red-500 uppercase flex items-center justify-center">
-                <svg class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                class="w-full py-4 md:py-6 btn-purge text-sm md:text-lg font-black tracking-widest sm:tracking-[0.3em] md:tracking-[0.5em] text-red-500 uppercase flex items-center justify-center">
+                <svg class="w-5 h-5 md:w-6 md:h-6 mr-2 md:mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
                     </path>
@@ -188,20 +192,20 @@
                         document.getElementById('admin-body').classList.add('safe-mode');
 
                         const container = document.getElementById('panel-container');
-                        container.className = "w-full max-w-2xl flex flex-col relative z-10 border border-emerald-900 bg-black bg-opacity-80 p-8 shadow-2xl";
+                        container.className = "w-full max-w-2xl flex flex-col relative z-10 border border-emerald-900 bg-black bg-opacity-80 p-4 sm:p-6 md:p-8 shadow-2xl mx-4 w-[calc(100%-2rem)] md:h-auto";
 
-                        document.getElementById('panel-header').className = "flex justify-between items-center mb-8 border-b border-emerald-900 pb-4";
+                        document.getElementById('panel-header').className = "flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 md:mb-8 border-b border-emerald-900 pb-4 gap-2 sm:gap-0";
                         document.getElementById('panel-title').innerText = "SYSTEM SECURE";
-                        document.getElementById('panel-title').className = "text-3xl font-black tracking-[0.3em] text-emerald-500 glitch-text transition-all";
+                        document.getElementById('panel-title').className = "text-xl sm:text-2xl md:text-3xl font-black tracking-widest sm:tracking-[0.3em] text-emerald-500 glitch-text transition-all";
 
-                        document.getElementById('warning-box').className = "bg-emerald-950 bg-opacity-30 border-l-4 border-emerald-600 p-4 mb-8";
+                        document.getElementById('warning-box').className = "bg-emerald-950 bg-opacity-30 border-l-4 border-emerald-600 p-3 md:p-4 mb-6 md:mb-8";
                         document.getElementById('warning-box').innerHTML = `
-                            <h3 class="text-emerald-500 font-bold mb-2 uppercase tracking-wider">[+] System Status</h3>
-                            <p class="text-emerald-400 text-sm font-mono">Sensors normalized. Sandbox cleared. Threat containment protocols deactivated.</p>
+                            <h3 class="text-emerald-500 font-bold mb-1 md:mb-2 uppercase tracking-wider text-sm md:text-base">[+] System Status</h3>
+                            <p class="text-emerald-400 text-xs md:text-sm font-mono">Sensors normalized. Sandbox cleared. Threat containment protocols deactivated.</p>
                         `;
 
                         document.querySelector('.btn-purge').outerHTML = `
-                            <button class="w-full py-6 border-2 border-emerald-600 bg-emerald-900 bg-opacity-20 text-lg font-black tracking-[0.5em] text-emerald-500 uppercase cursor-not-allowed opacity-50" disabled>
+                            <button class="w-full py-4 md:py-6 border-2 border-emerald-600 bg-emerald-900 bg-opacity-20 text-sm md:text-lg font-black tracking-widest sm:tracking-[0.3em] md:tracking-[0.5em] text-emerald-500 uppercase cursor-not-allowed opacity-50" disabled>
                                 SYSTEM OPERATIONAL
                             </button>
                         `;

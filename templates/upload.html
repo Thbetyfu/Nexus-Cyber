@@ -178,12 +178,15 @@
 
     <!-- LOCKDOWN OVERLAY -->
     <div id="lockdown-overlay"
-        class="fixed inset-0 z-[1000] alert-bg hidden flex flex-col items-center justify-center text-white text-center p-4">
-        <div class="space-y-6 max-w-4xl border-8 border-white p-12 bg-black bg-opacity-40 backdrop-blur-sm">
-            <h1 class="text-6xl md:text-8xl font-black mb-4 tracking-tighter">🚨 THREAT DETECTED 🚨</h1>
-            <div class="h-2 bg-white w-full animate-pulse"></div>
-            <h2 class="text-4xl md:text-6xl font-bold uppercase underline">SYSTEM LOCKED</h2>
-            <p class="text-xl md:text-2xl mt-8 font-mono tracking-widest">MALICIOUS PAYLOAD IDENTIFIED BY LLAMA-3
+        class="fixed inset-0 z-[1000] alert-bg hidden flex flex-col items-center justify-center text-white text-center p-4 overflow-y-auto">
+        <div
+            class="space-y-4 md:space-y-6 w-full max-w-4xl border-4 md:border-8 border-white p-6 md:p-12 bg-black bg-opacity-40 backdrop-blur-sm my-auto">
+            <h1 class="text-4xl sm:text-6xl md:text-8xl font-black mb-2 md:mb-4 tracking-tighter">🚨 THREAT DETECTED 🚨
+            </h1>
+            <div class="h-1 md:h-2 bg-white w-full animate-pulse"></div>
+            <h2 class="text-2xl sm:text-4xl md:text-6xl font-bold uppercase underline">SYSTEM LOCKED</h2>
+            <p class="text-sm sm:text-xl md:text-2xl mt-4 md:mt-8 font-mono tracking-widest break-words">MALICIOUS
+                PAYLOAD IDENTIFIED BY LLAMA-3
                 AUTO-MODERATOR</p>
 
             <!-- NEW FORENSIC BOXES -->
@@ -202,8 +205,9 @@
                 <!-- NEW TIMELINE & NETWORK SECTIONS -->
                 <div id="timeline-box"
                     class="bg-black border-l-4 border-blue-500 p-4 opacity-0 transition-opacity duration-1000 delay-1000">
-                    <span class="text-blue-500 font-black">[CHRONOLOGY]:</span>
-                    <ul id="analysis-timeline" class="text-white ml-6 list-disc text-sm space-y-1">
+                    <span class="text-blue-500 font-black flex-shrink-0">[CHRONOLOGY]:</span>
+                    <ul id="analysis-timeline"
+                        class="text-white ml-2 sm:ml-6 list-disc text-xs sm:text-sm space-y-1 mt-2 sm:mt-0 max-h-32 sm:max-h-none overflow-y-auto">
                         <li>Awaiting syscall trace...</li>
                     </ul>
                 </div>
@@ -225,9 +229,9 @@
         </div>
     </div>
 
-    <div class="w-full max-w-3xl z-10">
+    <div class="w-full max-w-3xl z-10 w-11/12 mx-auto">
         <!-- Dashboard Container -->
-        <div class="bg-black bg-opacity-90 neon-border p-8 md:p-12 space-y-10 relative">
+        <div class="bg-black bg-opacity-90 neon-border p-6 md:p-12 space-y-8 md:space-y-10 relative">
 
             <!-- Corner Accents -->
             <div class="absolute -top-1 -left-1 w-8 h-8 border-t-4 border-l-4 border-emerald-400"></div>
@@ -236,13 +240,18 @@
             <div class="absolute -bottom-1 -right-1 w-8 h-8 border-b-4 border-r-4 border-emerald-400"></div>
 
             <!-- Top Branding -->
-            <div class="flex justify-between items-end border-b border-emerald-900 pb-4">
+            <div
+                class="flex flex-col sm:flex-row justify-between items-start sm:items-end border-b border-emerald-900 pb-4 gap-4 sm:gap-0">
                 <div>
-                    <h1 class="text-3xl font-black text-emerald-500 tracking-tighter italic glitch-text">NEXUS-CYBER /
+                    <h1
+                        class="text-xl sm:text-2xl md:text-3xl font-black text-emerald-500 tracking-tight sm:tracking-tighter italic glitch-text">
+                        NEXUS-CYBER /
                         DEFENSE</h1>
-                    <p class="text-[10px] text-emerald-800 tracking-[0.5em] mt-1">SITUATIONAL AWARENESS: STANDBY</p>
+                    <p
+                        class="text-[8px] sm:text-[10px] text-emerald-800 tracking-widest sm:tracking-[0.5em] mt-1 break-words">
+                        SITUATIONAL AWARENESS: STANDBY</p>
                 </div>
-                <div class="text-right text-emerald-600 text-[10px] leading-tight">
+                <div class="text-left sm:text-right text-emerald-600 text-[10px] leading-tight">
                     <div>UID: NEX-{{ range(1000, 9999) | random }}</div>
                     <div id="current-time">00:00:00</div>
                 </div>
@@ -276,7 +285,7 @@
                     </div>
 
                     <button type="submit"
-                        class="w-full py-5 btn-military text-sm font-black tracking-[0.5em] text-emerald-400 uppercase">
+                        class="w-full py-4 md:py-5 btn-military text-xs sm:text-sm font-black tracking-widest sm:tracking-[0.5em] text-emerald-400 uppercase">
                         INITIATE DETONATION SCAN
                     </button>
                 </form>
@@ -288,7 +297,8 @@
             </div>
 
             <!-- System Logs Footer -->
-            <div class="text-[8px] text-emerald-900 flex justify-between uppercase">
+            <div
+                class="flex flex-col sm:flex-row text-[8px] text-emerald-900 justify-between uppercase gap-2 sm:gap-0 text-center sm:text-left">
                 <span>// ENCRYPTION: AES-256V2</span>
                 <span>// DEPLOYED AT: /HOME/TAQY/NEXUS-CYBER</span>
                 <span>// AUTH: MIL-DEF-{{ range(10, 99) | random }}</span>
