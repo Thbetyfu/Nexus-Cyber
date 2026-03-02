@@ -8,6 +8,7 @@ import requests
 LOG_FILE = "/home/taqy/Nexus-Cyber/tetragon.json"
 QUARANTINE_DIR = "/home/taqy/Nexus-Cyber/quarantine"
 ALERT_FILE = "/home/taqy/Nexus-Cyber/logs/alerts.txt"
+SESSION_MAP_FILE = '/home/taqy/Nexus-Cyber/logs/session_map.json'
 MODEL = "llama3"
 
 # System password provided by user
@@ -119,8 +120,19 @@ def follow_logs():
                             net_target["port"] = port
                             net_target["location"] = get_ip_location(ip)
 
-                    print(f"[!] MALICIOUS ACTIVITY: {simplified['binary']} -> {net_target['ip']}")
-                    set_keyboard_color("MALICIOUS")
+                    # Associate with IP from session map
+                    target_ip = "UNKNOWN"
+                    try:
+                        if os.path.exists(SESSION_MAP_FILE):
+                            with open(SESSION_MAP_FILE, 'r') as sm:
+                                smap = json.load(sm)
+                                # Firejail copies the binary to /quarantine, so we extract just the filename
+                                binary_name = os.path.basename(simplified.get('binary', ''))
+                                target_ip = smap.get(binary_name, "UNKNOWN")
+                    except Exception as e:
+                        print(f"Session map error: {e}")
+
+                    print(f"[!] MALICIOUS ACTIVITY ({target_ip}): {simplified['binary']} -> {net_target['ip']}")
                     
                     # Store comprehensive forensic log
                     alert_data = {
@@ -130,14 +142,18 @@ def follow_logs():
                         "timeline": analysis.get("timeline", ["Suspicious activity detected in kernel"]),
                         "action": analysis.get("action", "Process restricted by sensor"),
                         "network_target": net_target,
-                        "raw_binary": simplified['binary']
+                        "raw_binary": simplified['binary'],
+                        "target_ip": target_ip
                     }
                     
                     with open("/home/taqy/Nexus-Cyber/logs/detailed_alerts.log", "a") as df:
                         df.write(json.dumps(alert_data) + "\n")
                         
                     with open(ALERT_FILE, 'a') as af:
-                        af.write(f"[{time.ctime()}] MALICIOUS SYSCALL: {line}\n")
+                        af.write(f"[{time.ctime()}] MALICIOUS SYSCALL ({target_ip}): {line}\n")
+                        
+                    # Hardware alert is physical, so it's a global indicator naturally.
+                    set_keyboard_color("MALICIOUS")
                 # Removed 'else' to latch alert as per previous fix
                     
             except Exception as e:

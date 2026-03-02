@@ -9,8 +9,10 @@ import time
 import shutil
 
 app = Flask(__name__)
+app = Flask(__name__)
 UPLOAD_FOLDER = '/home/taqy/Nexus-Cyber/quarantine'
 ALERT_FILE = '/home/taqy/Nexus-Cyber/logs/alerts.txt'
+SESSION_MAP_FILE = '/home/taqy/Nexus-Cyber/logs/session_map.json'
 MODEL = 'llama3'
 S_PASS = "Thoriqtaqy2006$"
 
@@ -79,7 +81,7 @@ def scan_file(filepath):
     # Bypass AI for known safe binary/image extensions
     safe_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.mp4', '.mp3']
     if ext in safe_extensions:
-        set_hardware_alert("CLEAN")
+        # We don't change hardware alert here to avoid resetting other active threats
         return f"File scanned ({ext}) and marked as CLEAN (AI Bypass)."
 
     # Read first 2KB of file for context
@@ -107,6 +109,16 @@ def scan_file(filepath):
         analysis = json.loads(raw_result[start:end])
         
         if analysis.get("status") == "MALICIOUS" or "MALICIOUS" in raw_result.upper():
+            # Get IP from session map if possible
+            target_ip = "UNKNOWN"
+            try:
+                if os.path.exists(SESSION_MAP_FILE):
+                    with open(SESSION_MAP_FILE, 'r') as sm:
+                        smap = json.load(sm)
+                        target_ip = smap.get(filename, "UNKNOWN")
+            except:
+                pass
+
             alert_data = {
                 "timestamp": time.ctime(),
                 "status": "MALICIOUS",
@@ -114,17 +126,17 @@ def scan_file(filepath):
                 "timeline": analysis.get("timeline", ["1. File uploaded to server", "2. Static analysis flagged suspicious content"]),
                 "action": analysis.get("action", "File quarantined and sandbox killed"),
                 "network_target": analysis.get("network_target", {"ip": "N/A", "location": "N/A", "port": "N/A"}),
-                "raw_file": filename
+                "raw_file": filename,
+                "target_ip": target_ip
             }
             with open("/home/taqy/Nexus-Cyber/logs/detailed_alerts.log", "a") as df:
                 df.write(json.dumps(alert_data) + "\n")
             
             with open(ALERT_FILE, 'a') as f:
-                f.write(f"--- UPLOAD ALERT ---\nFile: {filename}\nStatus: MALICIOUS\n")
+                f.write(f"--- UPLOAD ALERT ---\nFile: {filename}\nStatus: MALICIOUS\nIP: {target_ip}\n")
             set_hardware_alert("MALICIOUS")
             return f"ALERT: {analysis.get('reason')}"
         else:
-            set_hardware_alert("CLEAN")
             return "File scanned and marked as CLEAN."
     except Exception as e:
         return f"Scan failed or JSON error: {str(e)}"
@@ -135,10 +147,12 @@ def index():
 
 @app.route('/status')
 def get_status():
-    """Poll for the latest detailed alert status."""
+    """Poll for the latest detailed alert status for the specific user."""
     detailed_log = "/home/taqy/Nexus-Cyber/logs/detailed_alerts.log"
     if not os.path.exists(detailed_log):
         return jsonify({"status": "safe"})
+    
+    user_ip = request.remote_addr
     
     try:
         with open(detailed_log, 'r') as f:
@@ -146,16 +160,28 @@ def get_status():
             if not lines:
                 return jsonify({"status": "safe"})
             
-            # Get the very last detailed entry
-            last_entry = json.loads(lines[-1])
-            if last_entry.get("status") == "MALICIOUS":
-                return jsonify({
-                    "status": "danger",
-                    "reason": last_entry.get("reason"),
-                    "action": last_entry.get("action"),
-                    "timeline": last_entry.get("timeline", []),
-                    "network_target": last_entry.get("network_target", {})
-                })
+            # Scan from bottom up to find the latest alert relevant to this IP or GLOBAL reset
+            for line in reversed(lines):
+                try:
+                    entry = json.loads(line)
+                    target_ip = entry.get("target_ip", "GLOBAL")
+                    
+                    if target_ip == "GLOBAL" and entry.get("status") == "CLEAN":
+                        return jsonify({"status": "safe"})
+                        
+                    if target_ip == user_ip or target_ip == "GLOBAL":
+                        if entry.get("status") == "MALICIOUS":
+                            return jsonify({
+                                "status": "danger",
+                                "reason": entry.get("reason"),
+                                "action": entry.get("action"),
+                                "timeline": entry.get("timeline", []),
+                                "network_target": entry.get("network_target", {})
+                            })
+                        elif entry.get("status") == "CLEAN":
+                             return jsonify({"status": "safe"})
+                except:
+                    continue
     except:
         pass
     
@@ -191,6 +217,18 @@ def upload_file_ajax():
     if file:
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
         file.save(filepath)
+        
+        # Save IP to session map
+        user_ip = request.remote_addr
+        smap = {}
+        if os.path.exists(SESSION_MAP_FILE):
+             try:
+                 with open(SESSION_MAP_FILE, 'r') as sm:
+                     smap = json.load(sm)
+             except: pass
+        smap[file.filename] = user_ip
+        with open(SESSION_MAP_FILE, 'w') as sm:
+             json.dump(smap, sm)
         
         detonation_thread = threading.Thread(target=detonate_file, args=(filepath,))
         detonation_thread.start()
