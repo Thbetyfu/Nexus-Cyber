@@ -1,10 +1,12 @@
-from flask import Flask, render_template, request, redirect, url_for, jsonify
+from flask import Flask, render_template, request, redirect, url_for, jsonify, Response
+from functools import wraps
 import os
 import json
 import ollama
 import subprocess
 import threading
 import time
+import shutil
 
 app = Flask(__name__)
 UPLOAD_FOLDER = '/home/taqy/Nexus-Cyber/quarantine'
@@ -13,6 +15,25 @@ MODEL = 'llama3'
 S_PASS = "Thoriqtaqy2006$"
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+def check_auth(username, password):
+    """Check if a username / password combination is valid."""
+    return username == 'admin' and password == S_PASS
+
+def authenticate():
+    """Sends a 401 response that enables basic auth"""
+    return Response(
+    'Administrator Override Required.\n', 401,
+    {'WWW-Authenticate': 'Basic realm="Nexus-Cyber Admin"'})
+
+def requires_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth = request.authorization
+        if not auth or not check_auth(auth.username, auth.password):
+            return authenticate()
+        return f(*args, **kwargs)
+    return decorated
 
 def set_hardware_alert(status):
     try:
@@ -178,6 +199,45 @@ def upload_file_ajax():
         if "ALERT" in result:
             return jsonify({"status": "danger", "message": result})
         return jsonify({"status": "success", "message": result})
+
+@app.route('/admin')
+@requires_auth
+def admin_panel():
+    return render_template('admin.html')
+
+@app.route('/reset', methods=['POST'])
+@requires_auth
+def reset_system():
+    try:
+        # Reset Forensic Logs to SAFE state
+        detailed_log = "/home/taqy/Nexus-Cyber/logs/detailed_alerts.log"
+        with open(detailed_log, "w") as f:
+            f.write('{"status": "CLEAN", "reason": "System Purged", "action": "Manual Override", "timeline": [], "network_target": {}}\n')
+            
+        open(ALERT_FILE, 'w').close()
+        open("/home/taqy/Nexus-Cyber/logs/sentinel.log", "w").close()
+        open("/home/taqy/Nexus-Cyber/logs/web.log", "w").close()
+        
+        # Clear Quarantine Directory
+        for filename in os.listdir(UPLOAD_FOLDER):
+            file_path = os.path.join(UPLOAD_FOLDER, filename)
+            try:
+                if os.path.isfile(file_path):
+                    os.unlink(file_path)
+                elif os.path.isdir(file_path):
+                    shutil.rmtree(file_path)
+            except Exception as e:
+                print(f"Failed to delete {file_path}. Reason: {e}")
+                
+        # Recreate .gitkeep to ensure folder structure is intact
+        open(os.path.join(UPLOAD_FOLDER, '.gitkeep'), 'a').close()
+                
+        # Reset Hardware LED
+        set_hardware_alert("CLEAN")
+        
+        return jsonify({"status": "success", "message": "System Purged"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)})
 
 if __name__ == '__main__':
     # Listen on all interfaces (0.0.0.0) so other devices in Wi-Fi can access

@@ -35,7 +35,13 @@ Every file uploaded remains isolated. The system automatically creates a **Firej
 - **Restricted Access**: `--private` directory to protect the host OS.
 - **Auto-Kill**: 10-second execution timeout before the process is force-killed.
 
-### 👻 6. Ghost Mode (Automated Persistence)
+### 🛡️ 6. Secure Admin Control Panel
+A dedicated, authenticated dashboard (`/admin`) to manually clear threat states:
+- **System Purge**: One-click reset to wipe forensic logs, clear quarantine, and reset hardware LEDs.
+- **Basic Auth Protected**: Hardcoded military-grade password requirement.
+- **Fallback**: Includes a local `emergency_reset.sh` script to force reset if the web UI is inaccessible.
+
+### 👻 7. Ghost Mode (Automated Persistence)
 Runs natively as a Linux **systemd daemon**. The system starts automatically at boot, ensuring your laptop is always protected.
 
 ---
