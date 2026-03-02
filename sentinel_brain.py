@@ -3,6 +3,7 @@ import os
 import time
 import ollama
 import subprocess
+import requests
 
 LOG_FILE = "/home/taqy/Nexus-Cyber/tetragon.json"
 QUARANTINE_DIR = "/home/taqy/Nexus-Cyber/quarantine"
@@ -25,6 +26,19 @@ def set_keyboard_color(status):
     except Exception as e:
         print(f"Error controlling hardware: {e}")
 
+def get_ip_location(ip):
+    """Retrieve Geo-IP information for a given address."""
+    if ip in ["127.0.0.1", "0.0.0.0", "localhost"] or ip.startswith("192.168."):
+        return "INTERNAL/LOCAL"
+    try:
+        response = requests.get(f"http://ip-api.com/json/{ip}", timeout=5)
+        data = response.json()
+        if data.get("status") == "success":
+            return f"{data.get('city')}, {data.get('country')}"
+        return "UNKNOWN LOCATION"
+    except:
+        return "OFFLINE/TIMEOUT"
+
 def analyze_with_ai(content_desc, source_name):
     """Send log or file info to Llama 3 for structured forensic analysis."""
     # Pre-filter for common system binaries and activities to reduce noise
@@ -39,18 +53,18 @@ def analyze_with_ai(content_desc, source_name):
         return {"status": "SAFE"}
         
     prompt = (
-        f"Analyze this Linux syscall log for ACTUAL malicious threats. Source: {source_name}.\n"
-        "IGNORE standard system processes like chronyd, systemd, or local shell commands starting from /bin/sh "
-        "UNLESS they are targeting sensitive files like /etc/shadow or /home/taqy/Nexus-Cyber/quarantine.\n"
-        "Focus on: Reverse shells, unauthorized data theft, or malware in /home/taqy/Nexus-Cyber/quarantine.\n"
-        "Respond ONLY with a valid JSON object:\n"
-        '{"status": "MALICIOUS" or "SAFE", "reason": "Short explanation", "action": "Action taken"}\n\n'
+        f"Role: Digital Forensic Expert Expert.\n"
+        f"Data Source: {source_name} (Kernel Syscalls via eBPF).\n"
+        "Instructions: Based on the provided log, reconstruct a Chronological Timeline of events. "
+        "Summarize specifically if there is evidence of exploitation, data access, or CNC connection. "
+        "You MUST respond ONLY with a valid JSON in exactly this format:\n"
+        '{"status": "MALICIOUS" or "SAFE", "reason": "Overview", "timeline": ["step 1", "step 2", "step 3"], "action": "Countermeasure"}\n\n'
         f"Data: {content_desc}"
     )
     
     try:
         response = ollama.chat(model=MODEL, messages=[
-            {'role': 'system', 'content': 'You are a professional SOC Analyst. Respond ONLY with valid JSON. Never flag standard OS maintenance as malicious.'},
+            {'role': 'system', 'content': 'You are a Digital Forensic Analyst. Response MUST be valid JSON only. Focus on chronological reasoning.'},
             {'role': 'user', 'content': prompt},
         ])
         raw_content = response['message']['content'].strip()
@@ -93,15 +107,29 @@ def follow_logs():
                 analysis = analyze_with_ai(json.dumps(simplified), "Tetragon Log")
                 
                 if analysis.get("status") == "MALICIOUS":
-                    print(f"[!] MALICIOUS ACTIVITY: {simplified['binary']}")
+                    # Extract network data if present
+                    net_target = {"ip": "N/A", "location": "N/A", "port": "N/A"}
+                    args = simplified.get("args", [])
+                    for arg in args:
+                        if isinstance(arg, dict) and "sockaddr" in str(arg).lower():
+                            addr = arg.get("sockaddr", {})
+                            ip = addr.get("addr", "N/A")
+                            port = addr.get("port", "N/A")
+                            net_target["ip"] = ip
+                            net_target["port"] = port
+                            net_target["location"] = get_ip_location(ip)
+
+                    print(f"[!] MALICIOUS ACTIVITY: {simplified['binary']} -> {net_target['ip']}")
                     set_keyboard_color("MALICIOUS")
                     
-                    # Store detailed log
+                    # Store comprehensive forensic log
                     alert_data = {
                         "timestamp": time.ctime(),
                         "status": "MALICIOUS",
-                        "reason": analysis.get("reason", "Suspicious syscall detected"),
-                        "action": analysis.get("action", "Process monitored and logged"),
+                        "reason": analysis.get("reason", "Malicious activity detected"),
+                        "timeline": analysis.get("timeline", ["Suspicious activity detected in kernel"]),
+                        "action": analysis.get("action", "Process restricted by sensor"),
+                        "network_target": net_target,
                         "raw_binary": simplified['binary']
                     }
                     
