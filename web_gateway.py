@@ -159,6 +159,26 @@ def upload_file():
         result = scan_file(filepath)
         return render_template('upload.html', message=result)
 
+@app.route('/upload-ajax', methods=['POST'])
+def upload_file_ajax():
+    if 'file' not in request.files:
+        return jsonify({"status": "error", "message": "No file part"})
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"status": "error", "message": "No selected file"})
+    
+    if file:
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], file.filename)
+        file.save(filepath)
+        
+        detonation_thread = threading.Thread(target=detonate_file, args=(filepath,))
+        detonation_thread.start()
+        
+        result = scan_file(filepath)
+        if "ALERT" in result:
+            return jsonify({"status": "danger", "message": result})
+        return jsonify({"status": "success", "message": result})
+
 if __name__ == '__main__':
     # Listen on all interfaces (0.0.0.0) so other devices in Wi-Fi can access
     app.run(host='0.0.0.0', port=5000)

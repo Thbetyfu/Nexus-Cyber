@@ -77,11 +77,104 @@
             color: #10b981;
             text-shadow: 2px 2px #000;
         }
+
+        /* Loading Screen Animations */
+        .radar-spinner {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            border: 2px solid rgba(16, 185, 129, 0.2);
+            position: relative;
+            animation: pulse-ring 2s infinite;
+        }
+
+        .radar-spinner::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 50%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #10b981);
+            transform-origin: 0 50%;
+            animation: radar-spin 1.5s linear infinite;
+        }
+
+        @keyframes radar-spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        @keyframes pulse-ring {
+            0% {
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+            }
+
+            70% {
+                box-shadow: 0 0 0 20px rgba(16, 185, 129, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+            }
+        }
+
+        .cyber-text-stream {
+            font-family: monospace;
+            overflow: hidden;
+            white-space: nowrap;
+            border-right: 2px solid #10b981;
+            animation: typing 2s steps(40, end), blink-caret .75s step-end infinite;
+        }
+
+        @keyframes typing {
+            from {
+                width: 0
+            }
+
+            to {
+                width: 100%
+            }
+        }
+
+        @keyframes blink-caret {
+
+            from,
+            to {
+                border-color: transparent
+            }
+
+            50% {
+                border-color: #10b981;
+            }
+        }
     </style>
 </head>
 
 <body class="relative min-h-screen flex flex-col items-center justify-center p-6 select-none overflow-hidden">
     <div class="scanline"></div>
+
+    <!-- LOADING OVERLAY -->
+    <div id="loading-overlay"
+        class="fixed inset-0 z-[500] bg-black bg-opacity-90 hidden flex items-center justify-center backdrop-blur-md transition-opacity duration-300">
+        <div class="flex flex-col items-center space-y-8">
+            <div class="radar-spinner"></div>
+            <div class="text-emerald-500 font-mono tracking-widest text-xl cyber-text-stream">
+                [>] UPLOADING PAYLOAD...
+            </div>
+            <div id="loading-subtext" class="text-emerald-700 font-mono text-xs tracking-widest animate-pulse">
+                LLAMA-3 HEURISTIC ANALYSIS IN PROGRESS_
+            </div>
+            <div class="w-64 h-1 bg-emerald-900 mt-4">
+                <div class="h-full bg-emerald-500 loading-progress" style="width: 0%; transition: width 0.2s;"></div>
+            </div>
+        </div>
+    </div>
 
     <!-- LOCKDOWN OVERLAY -->
     <div id="lockdown-overlay"
@@ -164,7 +257,7 @@
 
             <!-- Central Form -->
             <div class="py-4">
-                <form action="/upload" method="POST" enctype="multipart/form-data" class="space-y-8">
+                <form id="upload-form" action="/upload" method="POST" enctype="multipart/form-data" class="space-y-8">
                     <div class="relative group">
                         <input type="file" name="file" id="file-input" class="hidden" required>
                         <label for="file-input"
@@ -190,12 +283,9 @@
             </div>
 
             <!-- Analysis Message -->
-            {% if message %}
-            <div
-                class="border-2 {% if 'MALICIOUS' in message %}border-red-600 text-red-500 alert-pulse bg-red-950 bg-opacity-20{% else %}border-emerald-600 text-emerald-400 bg-emerald-950 bg-opacity-20{% endif %} p-4 text-center text-xs tracking-widest leading-relaxed">
-                <span class="font-black">[ RESULT ]</span>: {{ message }}
+            <div id="result-message" class="hidden border-2 p-4 text-center text-xs tracking-widest leading-relaxed">
+                <span class="font-black">[ RESULT ]</span>: <span id="result-text"></span>
             </div>
-            {% endif %}
 
             <!-- System Logs Footer -->
             <div class="text-[8px] text-emerald-900 flex justify-between uppercase">
@@ -220,6 +310,66 @@
         fileInput.addEventListener('change', () => {
             const name = fileInput.files[0] ? fileInput.files[0].name : "NO SOURCE SELECTED";
             document.getElementById('file-name').innerText = name.toUpperCase();
+        });
+
+        // Upload Form handler with Cyberpunk Loading Screen
+        const form = document.getElementById('upload-form');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        const progressLine = document.querySelector('.loading-progress');
+        const loadingSubtext = document.getElementById('loading-subtext');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+
+            // Show Loading Overlay
+            loadingOverlay.classList.remove('hidden');
+
+            // Fake progress animation
+            let progress = 0;
+            const progressInterval = setInterval(() => {
+                progress += Math.random() * 5;
+                if (progress > 95) progress = 95; // Stop at 95 until real response
+                progressLine.style.width = `${progress}%`;
+
+                // Shuffle subtext for extra cyber feel
+                const texts = ["EXTRACTING BINARY...", "EVADING SANDBOX DETECTIONS...", "LLAMA-3 DEEP SCAN...", "CHECKING SYSCALL HOOKS..."];
+                if (Math.random() > 0.8) {
+                    loadingSubtext.innerText = texts[Math.floor(Math.random() * texts.length)];
+                }
+            }, 500);
+
+            try {
+                const response = await fetch('/upload-ajax', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+
+                clearInterval(progressInterval);
+                progressLine.style.width = '100%';
+
+                // Keep loading screen for half a second more for dramatic effect
+                setTimeout(() => {
+                    loadingOverlay.classList.add('hidden');
+
+                    const resultDiv = document.getElementById('result-message');
+                    const resultText = document.getElementById('result-text');
+                    resultDiv.classList.remove('hidden');
+                    resultText.innerText = result.message;
+
+                    if (result.status === "danger") {
+                        resultDiv.className = "border-2 border-red-600 text-red-500 bg-red-950 bg-opacity-20 p-4 text-center text-xs tracking-widest leading-relaxed";
+                    } else {
+                        resultDiv.className = "border-2 border-emerald-600 text-emerald-400 bg-emerald-950 bg-opacity-20 p-4 text-center text-xs tracking-widest leading-relaxed";
+                    }
+                }, 800);
+
+            } catch (err) {
+                console.error("Upload failed", err);
+                clearInterval(progressInterval);
+                loadingOverlay.classList.add('hidden');
+            }
         });
 
         // POLLING STATUS
