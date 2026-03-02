@@ -118,14 +118,31 @@ def analyze_with_ai(content_desc, source_name, injected_network=None):
     
     try:
         response = ollama.chat(model=MODEL, messages=[
-            {'role': 'system', 'content': 'You are a Digital Forensic Analyst. Response MUST be valid JSON only. Focus on chronological reasoning.'},
+            {'role': 'system', 'content': 'You are a Digital Forensic Analyst. Response MUST be valid JSON only. Focus on chronological reasoning. Do not include any text outside the JSON block. Ensure all strings are properly escaped for JSON.'},
             {'role': 'user', 'content': prompt},
         ])
         raw_content = response['message']['content'].strip()
+        
+        # Look for the first '{' and last '}'
         start = raw_content.find('{')
         end = raw_content.rfind('}') + 1
+        
         if start != -1 and end != 0:
-            return json.loads(raw_content[start:end])
+            json_str = raw_content[start:end]
+            try:
+                # First attempt: direct parse
+                return json.loads(json_str)
+            except json.JSONDecodeError:
+                # Second attempt: try simple fixes for common LLM JSON errors (like unescaped backslashes)
+                try:
+                    # Clean up common AI formatting artifacts
+                    fixed_json = json_str.replace('\\', '\\\\').replace('\\\\"', '\\"')
+                    return json.loads(fixed_json)
+                except:
+                    print(f"[-] AI JSON Parse Failed. Raw head: {raw_content[:100]}...")
+                    return {"status": "SAFE"}
+        
+        print(f"[-] No JSON found in AI response. Raw head: {raw_content[:100]}...")
         return {"status": "SAFE"}
     except Exception as e:
         print(f"AI/JSON Parsing Error: {e}")
