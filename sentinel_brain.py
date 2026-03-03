@@ -297,11 +297,11 @@ def follow_logs():
                 
                 log_data_str = json.dumps(simplified)
                 
-                # 1. Reflex Brain (Fast Path)
                 decision = reflex_decision(log_data_str)
                 
                 # Extract basic info quickly
                 binary_name = os.path.basename(simplified.get('binary', ''))
+                pid = data.get("process_kprobe", {}).get("process", {}).get("pid")
                 target_ip = "UNKNOWN"
                 try:
                     if os.path.exists(SESSION_MAP_FILE):
@@ -313,9 +313,23 @@ def follow_logs():
                 
                 if decision == "BLOCK":
                     print(f"[!] REFLEX BRAIN SYSCALL BLOCK: {binary_name}")
+                    
+                    # Automated Containment (Auto-Kill)
+                    if pid:
+                        try:
+                            # Attempt to aggressively kill the malicious process
+                            kill_cmd = f'echo "{S_PASS}" | sudo -S kill -9 {pid}'
+                            result = subprocess.run(kill_cmd, shell=True, check=False, capture_output=True)
+                            if result.returncode == 0:
+                                print(f"[KILL] Process {pid} ({binary_name}) forcefully killed.")
+                            else:
+                                print(f"[KILL] Process {pid} may already be dead or unreachable.")
+                        except Exception as e:
+                            print(f"[KILL ERROR] Failed to execute kill command on {pid}: {e}")
+
                     set_keyboard_color("MALICIOUS")
                     with open(ALERT_FILE, 'a') as af:
-                        af.write(f"[{time.ctime()}] REFLEX SYSCALL BLOCK: {binary_name} ({target_ip})\n")
+                        af.write(f"[{time.ctime()}] REFLEX SYSCALL BLOCK & KILLED: {binary_name} ({target_ip}) PID:{pid}\n")
                         
                 # 2. Forensic Brain (Slow Path Async)
                 net_target = {"ip": "Local/None", "location": "Local/None", "port": "N/A"}
