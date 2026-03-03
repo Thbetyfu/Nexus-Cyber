@@ -16,24 +16,28 @@ The system hooks into the Linux kernel using **Cilium Tetragon**. It monitors cr
 - `sys_connect`: Monitoring all outgoing network connections.
 Logs are streamed in JSON format for instant AI processing.
 
-### 🧠 2. Sentinel-Brain (AI Analyst)
-The AI engine based on **Ollama (Llama 3)** that classifies events as `CLEAN` or `MALICIOUS`. It acts as the central command for both syscall logs and uploaded file analysis.
+### 🧠 2. The Dual-Brain AI Architecture (New)
+The core analysis engine (`sentinel_brain.py`) now runs a highly advanced Dual-Brain architecture to balance speed and forensic depth:
+- ⚡ **The Reflex Brain (`qwen2.5-coder`)**: A lightweight, synchronous model that acts instantly. It reads raw eBPF logs and outputs only `BLOCK` or `ALLOW`. If it detects danger, it triggers the hardware lockdown in milliseconds.
+- 🕵️ **The Forensic Brain (`llama3`)**: An asynchronous background thread spawned after a `BLOCK` decision. It parses the logs deeply to generate a comprehensive JSON report (Timeline, Exploit Reasoning, Network Targets) without lagging the main OS.
 
 ### 🚨 3. Hardware-Alert Sync
 Integrated directly with **`asusctl`** (Aura Sync). If a threat is detected:
-- 🔴 **Keyboard Glows Red**: Immediate physical feedback.
+- 🔴 **Keyboard Glows Red**: Immediate physical feedback triggered by the Reflex Brain.
 - 🔵 **Keyboard Returns to Blue**: Normal status restored.
 
 ### 🌐 4. Military Defense Dashboard (Real-Time UI)
 A futuristic, military-style web portal built with **Tailwind CSS**.
 - **Live Polling**: Frontend pings the backend every 2s for status updates.
 - **Visual Alert**: If a breach occurs, the entire UI turns into a red-flashing **"SYSTEM LOCKED"** warning.
+- **Multi-Tenant Lockdown**: If multiple users are on the system, only the IP address that uploaded the malware gets locked out, while others remain safe.
 
-### ☢️ 5. Auto-Detonate (Sandboxing)
+### ☢️ 5. Auto-Detonate (Sandboxing) & Lethal Simulation
 Every file uploaded remains isolated. The system automatically creates a **Firejail Sandbox**:
-- **Network Isolation**: `--net=none` to prevent data exfiltration.
+- **Network Isolation**: Controllable via Tetragon to monitor data exfiltration.
 - **Restricted Access**: `--private` directory to protect the host OS.
 - **Auto-Kill**: 10-second execution timeout before the process is force-killed.
+- **Real-World Threat Testing**: Built-in test scripts capable of simulating Reverse Shells, Fileless Executions (`curl | bash`), Data Exfiltration, and Crontab Persistence.
 
 ### 🛡️ 6. Secure Admin Control Panel
 A dedicated, authenticated dashboard (`/admin`) to manually clear threat states:
@@ -54,13 +58,17 @@ graph TD
     Web -->|Save & Sandbox| Quaran[/quarantine/]
     Quaran -->|Auto-Detonate| Firejail[Firejail Sandbox]
     Kernel[Linux Kernel eBPF] -->|Syscall Logs| Tetra[Tetragon Engine]
-    Tetra -->|JSON Stream| SB[Sentinel-Brain AI Analyst]
-    SB -->|Prompts| Llama[Ollama Llama 3]
-    Llama -->|Malicious/Clean| SB
-    SB -->|Alerts| Logs[(Alert Logs/alerts.txt)]
-    SB -->|Trigger| Hardware[ASUS aura effect static]
-    Web -->|Poll Status| Logs
-    Logs -->|Danger Alert| UI[Flashing Red Lockdown UI]
+    Tetra -->|JSON Stream| Tracker[Log Scraper & Injector]
+    
+    Tracker -->|Millisecond Decision| Reflex[Reflex Brain: Qwen2.5]
+    Reflex -->|Status: BLOCK| Hardware[ASUS RED Alert]
+    Reflex -->|Status: BLOCK| Logs[(Alert Logs/alerts.txt)]
+    
+    Reflex -->|Spawns Thread| Forensic[Forensic Brain: Llama 3]
+    Forensic -->|Deep Analysis| LogsDetailed[(detailed_alerts.log)]
+    
+    Web -->|Poll Status| LogsDetailed
+    LogsDetailed -->|Danger Alert| UI[Flashing Red Lockdown UI]
 ```
 
 ---
