@@ -42,6 +42,21 @@ def get_ip_location(ip):
         print(f"Geo-IP Error: {e}")
         return "OFFLINE/TIMEOUT"
 
+def send_telegram_alert(message):
+    """Send an alert to the admin's Telegram via Bot API."""
+    token = "8434796194:AAE2NEu5wJg9UxDaU0JF9JPX5CISvIjbVv0"
+    chat_id = "7564036407"
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    payload = {
+        "chat_id": chat_id,
+        "text": message,
+        "parse_mode": "Markdown"
+    }
+    try:
+        requests.post(url, json=payload, timeout=3)
+    except Exception as e:
+        print(f"Telegram Alert Error: {e}")
+
 def scrape_tetragon_for_ip(filename, max_lines=500):
     """
     Search backwards through tetragon.json for the most recent network activity 
@@ -154,28 +169,33 @@ def reflex_decision(log_data):
     # Pre-filter for common system binaries and activities to reduce noise
     system_whitelist = [
         '"binary": "/usr/lib', '"binary": "/usr/bin', '"binary": "/bin',
-        '"binary": "/usr/sbin/chronyd', '"binary": "/usr/sbin',
+        '"binary": "/usr/sbin', '"binary": "/sbin', '"binary": "/opt',
         '"binary": "/home/taqy/Nexus-Cyber/venv/bin/python3"',
-        '"binary": "/usr/share/antigravity', '"binary": "/usr/local/bin/ollama'
+        '"binary": "/usr/share/antigravity', '"binary": "/usr/local/bin/ollama',
+        '"binary": "/usr/libexec', '"binary": "/etc', '"binary": "/var',
+        '"binary": "/snap', '"binary": "exe"', '"binary": "ps"', 
+        '"binary": "/run', '"binary": "/sys', '"binary": "/proc'
     ]
     if any(item in log_data for item in system_whitelist):
         return "ALLOW"
         
-    prompt = f"Berdasarkan log eBPF atau file snippet ini, jawab HANYA dengan 1 kata: BLOCK atau ALLOW.\n\nData: {log_data}"
+    prompt = f"Berdasarkan log eBPF atau file snippet ini, tentukan apakah ini ancaman berbahaya. Jawab HANYA dengan 1 kata mutlak: BLOCK atau ALLOW.\n\nData: {log_data}"
     
     try:
         response = ollama.chat(model="qwen2.5-coder", messages=[
+            {'role': 'system', 'content': 'You are a cybersecurity reflex engine. Return ONLY the word BLOCK or ALLOW. No explanation. ALLOW normal user applications and OS background tasks. BLOCK only clear malicious anomalies like reverse shells, data exfiltration, or anomalous executions.'},
             {'role': 'user', 'content': prompt}
         ])
         decision = response['message']['content'].strip().upper()
-        if "BLOCK" in decision:
+        # Ensure it purely starts with BLOCK or equals BLOCK to evade hallucinatory text "DO NOT BLOCK"
+        if decision == "BLOCK" or decision.startswith("BLOCK"):
             return "BLOCK"
         return "ALLOW"
     except Exception as e:
         print(f"Reflex Brain Error: {e}")
         return "ALLOW"
         
-def forensic_analysis_task(log_data, filename, source_name, injected_network, target_ip="UNKNOWN"):
+def forensic_analysis_task(log_data, filename, source_name, injected_network, target_ip="GLOBAL"):
     """The Forensic Brain: Slow, detailed analysis in a background thread."""
     try:
         print(f"[*] Forensic Brain starting analysis for: {filename}...")
@@ -246,12 +266,12 @@ def analyze_file_dynamic(filepath):
     decision = reflex_decision(snippet)
     
     # Get session IP first
-    target_ip = "UNKNOWN"
+    target_ip = "GLOBAL"
     try:
         if os.path.exists(SESSION_MAP_FILE):
             with open(SESSION_MAP_FILE, 'r') as sm:
                 smap = json.load(sm)
-                target_ip = smap.get(filename, "UNKNOWN")
+                target_ip = smap.get(filename, "GLOBAL")
     except:
         pass
         
@@ -302,12 +322,12 @@ def follow_logs():
                 # Extract basic info quickly
                 binary_name = os.path.basename(simplified.get('binary', ''))
                 pid = data.get("process_kprobe", {}).get("process", {}).get("pid")
-                target_ip = "UNKNOWN"
+                target_ip = "GLOBAL"
                 try:
                     if os.path.exists(SESSION_MAP_FILE):
                         with open(SESSION_MAP_FILE, 'r') as sm:
                             smap = json.load(sm)
-                            target_ip = smap.get(binary_name, "UNKNOWN")
+                            target_ip = smap.get(binary_name, "GLOBAL")
                 except:
                     pass
                 
@@ -322,6 +342,14 @@ def follow_logs():
                             result = subprocess.run(kill_cmd, shell=True, check=False, capture_output=True)
                             if result.returncode == 0:
                                 print(f"[KILL] Process {pid} ({binary_name}) forcefully killed.")
+                                alert_msg = (
+                                    f"🚨 *NEXUS-CYBER: THREAT TERMINATED* 🚨\n\n"
+                                    f"💀 *Target Destroyed:* `{binary_name}`\n"
+                                    f"🔢 *PID:* `{pid}`\n"
+                                    f"⏱️ *Time:* `{time.ctime()}`\n"
+                                    f"🛡️ *Action:* `SIGKILL (-9)` via Reflex Brain"
+                                )
+                                send_telegram_alert(alert_msg)
                             else:
                                 print(f"[KILL] Process {pid} may already be dead or unreachable.")
                         except Exception as e:
