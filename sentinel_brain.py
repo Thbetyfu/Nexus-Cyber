@@ -208,11 +208,16 @@ def reflex_decision(log_data):
         print(f"Reflex Brain Error: {e}")
         return "ALLOW"
         
-def forensic_analysis_task(log_data, filename, source_name, injected_network, target_ip="GLOBAL"):
+def forensic_analysis_task(log_data, filename, source_name, injected_network, target_ip="GLOBAL", force_malicious=False):
     """The Forensic Brain: Slow, detailed analysis in a background thread."""
     try:
         print(f"[*] Forensic Brain starting analysis for: {filename}...")
         analysis = analyze_with_ai(log_data, source_name, injected_network)
+        
+        if force_malicious:
+            analysis["status"] = "MALICIOUS"
+            if "reason" not in analysis or analysis.get("status", "") == "SAFE":
+                analysis["reason"] = "Threat contained by Reflex Brain (Auto-Kill). AI Forensic generated."
         
         if analysis.get("status") in ["MALICIOUS"]:
             alert_data = {
@@ -297,7 +302,7 @@ def analyze_file_dynamic(filepath):
         print(f"[+] Reflex Brain allowed execution for: {filename}")
         
     # Kick off the Forensic Brain asynchronously to avoid waiting
-    threading.Thread(target=forensic_analysis_task, args=(snippet, filename, f"File Content: {filename}", injected_network, target_ip)).start()
+    threading.Thread(target=forensic_analysis_task, args=(snippet, filename, f"File Content: {filename}", injected_network, target_ip, decision == "BLOCK")).start()
     
     return {"status": "MALICIOUS" if decision == "BLOCK" else "CLEAN"}
 
@@ -405,7 +410,7 @@ def follow_logs():
                         net_target["port"] = port
                         net_target["location"] = get_ip_location(ip)
                         
-                threading.Thread(target=forensic_analysis_task, args=(log_data_str, binary_name, "Tetragon Syscall Log", net_target, target_ip)).start()
+                threading.Thread(target=forensic_analysis_task, args=(log_data_str, binary_name, "Tetragon Syscall Log", net_target, target_ip, decision == "BLOCK")).start()
                 
             except Exception as e:
                 pass
