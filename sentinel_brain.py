@@ -28,6 +28,19 @@ def set_keyboard_color(status):
     except Exception as e:
         print(f"Error controlling hardware: {e}")
 
+def hardware_cooldown():
+    """Wait 5 seconds, then calm down the fan and LED."""
+    time.sleep(5)
+    try:
+        print("[*] Calming down hardware (Balanced Mode)...")
+        # Back to Balanced (or Quiet)
+        cmd_fan = f'echo "{S_PASS}" | sudo -S asusctl profile -P Balanced'
+        subprocess.run(cmd_fan, shell=True, check=False, capture_output=True)
+        # Revert color to Blue (SAFE)
+        set_keyboard_color("CLEAN")
+    except Exception as e:
+        print(f"Hardware Cooldown Error: {e}")
+
 def get_ip_location(ip):
     """Retrieve Geo-IP information for a given address."""
     if ip in ["127.0.0.1", "0.0.0.0", "localhost"] or ip.startswith("192.168."):
@@ -356,6 +369,14 @@ def follow_logs():
                             print(f"[KILL ERROR] Failed to execute kill command on {pid}: {e}")
 
                     set_keyboard_color("MALICIOUS")
+                    try:
+                        cmd_fan_max = f'echo "{S_PASS}" | sudo -S asusctl profile -P Performance'
+                        subprocess.run(cmd_fan_max, shell=True, check=False, capture_output=True)
+                    except: pass
+                    
+                    # Start asynchronous hardware cooldown
+                    threading.Thread(target=hardware_cooldown).start()
+
                     with open(ALERT_FILE, 'a') as af:
                         af.write(f"[{time.ctime()}] REFLEX SYSCALL BLOCK & KILLED: {binary_name} ({target_ip}) PID:{pid}\n")
                         
