@@ -208,7 +208,7 @@ def reflex_decision(log_data):
         print(f"Reflex Brain Error: {e}")
         return "ALLOW"
         
-def forensic_analysis_task(log_data, filename, source_name, injected_network, target_ip="GLOBAL", force_malicious=False):
+def forensic_analysis_task(log_data, filename, source_name, injected_network, target_ip="SYSTEM", force_malicious=False):
     """The Forensic Brain: Slow, detailed analysis in a background thread."""
     try:
         print(f"[*] Forensic Brain starting analysis for: {filename}...")
@@ -218,25 +218,26 @@ def forensic_analysis_task(log_data, filename, source_name, injected_network, ta
             analysis["status"] = "MALICIOUS"
             if "reason" not in analysis or analysis.get("status", "") == "SAFE":
                 analysis["reason"] = "Threat contained by Reflex Brain (Auto-Kill). AI Forensic generated."
-        
-        if analysis.get("status") in ["MALICIOUS"]:
-            alert_data = {
-                "timestamp": time.ctime(),
-                "status": "MALICIOUS",
-                "reason": analysis.get("reason", "Malicious activity detected"),
-                "timeline": analysis.get("timeline", ["Suspicion flagged by Reflex Brain", "Forensic analysis generated details"]),
-                "action": analysis.get("action", "Process restricted and system locked"),
-                "network_target": analysis.get("network_target", injected_network) if injected_network else analysis.get("network_target", {}),
-                "raw_file": filename,
-                "target_ip": target_ip
-            }
-
-            with open("/home/taqy/Nexus-Cyber/logs/detailed_alerts.log", "a") as df:
-                df.write(json.dumps(alert_data) + "\n")
                 
+        alert_data = {
+            "timestamp": time.ctime(),
+            "status": analysis.get("status", "CLEAN").upper(),
+            "reason": analysis.get("reason", "File deemed safe by AI Forensics."),
+            "timeline": analysis.get("timeline", ["Analysis completed successfully."]),
+            "action": analysis.get("action", "Allow Execution."),
+            "network_target": analysis.get("network_target", injected_network) if injected_network else analysis.get("network_target", {}),
+            "raw_file": filename,
+            "target_ip": target_ip
+        }
+
+        # ALWAYS write to detailed_alerts.log so the Web UI knows Forensic is done
+        with open("/home/taqy/Nexus-Cyber/logs/detailed_alerts.log", "a") as df:
+            df.write(json.dumps(alert_data) + "\n")
+            
+        if analysis.get("status") in ["MALICIOUS"]:
             print(f"[+] Forensic Brain finished analyzing {filename}. Details sent to UI.")
         else:
-            print(f"[+] Forensic Brain cleared {filename} as SAFE.")
+            print(f"[+] Forensic Brain cleared {filename} as SAFE. Logged in background.")
             
     except Exception as e:
         print(f"[-] Forensic Brain Thread Error: {e}")
@@ -284,12 +285,12 @@ def analyze_file_dynamic(filepath):
     decision = reflex_decision(snippet)
     
     # Get session IP first
-    target_ip = "GLOBAL"
+    target_ip = "SYSTEM"
     try:
         if os.path.exists(SESSION_MAP_FILE):
             with open(SESSION_MAP_FILE, 'r') as sm:
                 smap = json.load(sm)
-                target_ip = smap.get(filename, "GLOBAL")
+                target_ip = smap.get(filename, "SYSTEM")
     except:
         pass
         
@@ -353,12 +354,12 @@ def follow_logs():
                 # Extract basic info quickly
                 binary_name = os.path.basename(simplified.get('binary', ''))
                 pid = data.get("process_kprobe", {}).get("process", {}).get("pid")
-                target_ip = "GLOBAL"
+                target_ip = "SYSTEM"
                 try:
                     if os.path.exists(SESSION_MAP_FILE):
                         with open(SESSION_MAP_FILE, 'r') as sm:
                             smap = json.load(sm)
-                            target_ip = smap.get(binary_name, "GLOBAL")
+                            target_ip = smap.get(binary_name, "SYSTEM")
                 except:
                     pass
                 

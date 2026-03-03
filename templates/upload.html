@@ -317,9 +317,13 @@
 
         // File name display
         const fileInput = document.getElementById('file-input');
+        let uploadedFileName = "";
+        let isScanning = false;
+
         fileInput.addEventListener('change', () => {
             const name = fileInput.files[0] ? fileInput.files[0].name : "NO SOURCE SELECTED";
             document.getElementById('file-name').innerText = name.toUpperCase();
+            uploadedFileName = name;
         });
 
         // Upload Form handler with Cyberpunk Loading Screen
@@ -327,10 +331,23 @@
         const loadingOverlay = document.getElementById('loading-overlay');
         const progressLine = document.querySelector('.loading-progress');
         const loadingSubtext = document.getElementById('loading-subtext');
+        const titleText = document.querySelector('.cyber-text-stream');
 
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             const formData = new FormData(form);
+            isScanning = true;
+
+            // Reset Loading Overlay to Green
+            titleText.className = "text-emerald-500 font-mono tracking-widest text-xl cyber-text-stream";
+            titleText.innerText = "[>] UPLOADING PAYLOAD...";
+            loadingSubtext.className = "text-emerald-700 font-mono text-xs tracking-widest animate-pulse";
+            loadingSubtext.innerText = "LLAMA-3 HEURISTIC ANALYSIS IN PROGRESS_";
+            progressLine.style.backgroundColor = "rgb(16 185 129)";
+            document.querySelector('.w-64').className = "w-64 h-1 bg-emerald-900 mt-4";
+            document.querySelector('.radar-spinner').style.borderColor = "rgba(16, 185, 129, 0.2)";
+
+            loadingOverlay.classList.remove('hidden');
 
             // Show Loading Overlay
             loadingOverlay.classList.remove('hidden');
@@ -359,26 +376,24 @@
                 clearInterval(progressInterval);
                 progressLine.style.width = '100%';
 
-                // Keep loading screen for half a second more for dramatic effect
-                setTimeout(() => {
-                    loadingOverlay.classList.add('hidden');
-
-                    const resultDiv = document.getElementById('result-message');
-                    const resultText = document.getElementById('result-text');
-                    resultDiv.classList.remove('hidden');
-                    resultText.innerText = result.message;
-
-                    if (result.status === "danger") {
-                        resultDiv.className = "border-2 border-red-600 text-red-500 bg-red-950 bg-opacity-20 p-4 text-center text-xs tracking-widest leading-relaxed";
-                    } else {
-                        resultDiv.className = "border-2 border-emerald-600 text-emerald-400 bg-emerald-950 bg-opacity-20 p-4 text-center text-xs tracking-widest leading-relaxed";
-                    }
-                }, 800);
-
+                // Transition to Forensic Wait Mode
+                if (result.status === "danger") {
+                    titleText.className = "text-red-500 font-mono tracking-widest bg-black px-2 text-xl cyber-text-stream";
+                    titleText.innerText = "[!] REFLEX TRIGGERED - AWAITING FORENSICS...";
+                    loadingSubtext.className = "text-red-600 font-mono text-xs tracking-widest animate-pulse mt-2";
+                    loadingSubtext.innerText = "LLAMA-3 IS COMPILING THREAT TIMELINE_";
+                    progressLine.style.backgroundColor = "rgb(239 68 68)";
+                    document.querySelector('.w-64').className = "w-64 h-1 bg-red-900 mt-4";
+                    document.querySelector('.radar-spinner').style.borderColor = "rgba(239, 68, 68, 0.5)";
+                } else {
+                    titleText.innerText = "[>] REFLEX CLEAR - AWAITING FORENSICS...";
+                    loadingSubtext.innerText = "LLAMA-3 IS VERIFYING SANDBOX DEEP LOGS_";
+                }
             } catch (err) {
                 console.error("Upload failed", err);
                 clearInterval(progressInterval);
                 loadingOverlay.classList.add('hidden');
+                isScanning = false;
             }
         });
 
@@ -390,14 +405,17 @@
         const actionText = document.getElementById('mitigation-action');
 
         async function checkStatus() {
+            if (!isScanning) return;
             try {
-                const response = await fetch('/status');
+                const response = await fetch('/status?filename=' + encodeURIComponent(uploadedFileName));
                 const data = await response.json();
 
                 if (data.status === 'danger') {
+                    isScanning = false;
+                    loadingOverlay.classList.add('hidden');
+
                     if (overlay.classList.contains('hidden')) {
                         overlay.classList.remove('hidden');
-                        // Dramatic slide-in for forensic boxes
                         setTimeout(() => {
                             reasonText.innerText = data.reason || "Analyzing vulnerability...";
                             analysisBox.classList.remove('-translate-x-full');
@@ -407,7 +425,6 @@
                             mitigationBox.classList.remove('translate-x-full');
                         }, 1200);
 
-                        // Populate Timeline
                         const timelineList = document.getElementById('analysis-timeline');
                         timelineList.innerHTML = '';
                         (data.timeline || ["Monitoring kernel events..."]).forEach(step => {
@@ -417,26 +434,29 @@
                         });
                         document.getElementById('timeline-box').classList.remove('opacity-0');
 
-                        // Populate Network Info
                         const net = data.network_target || {};
                         document.getElementById('net-ip').innerText = net.ip || "N/A";
                         document.getElementById('net-loc').innerText = net.location || "N/A";
                         document.getElementById('net-port').innerText = net.port || "N/A";
                         document.getElementById('network-box').classList.remove('opacity-0');
                     }
-                } else {
+                } else if (data.status === 'clean') {
+                    isScanning = false;
+                    loadingOverlay.classList.add('hidden');
                     overlay.classList.add('hidden');
-                    analysisBox.classList.add('-translate-x-full');
-                    mitigationBox.classList.add('translate-x-full');
-                    document.getElementById('timeline-box').classList.add('opacity-0');
-                    document.getElementById('network-box').classList.add('opacity-0');
+
+                    const resultDiv = document.getElementById('result-message');
+                    resultDiv.classList.remove('hidden');
+                    resultDiv.className = "border-2 border-emerald-600 text-emerald-400 bg-emerald-950 bg-opacity-20 p-4 text-center text-xs tracking-widest leading-relaxed mt-4";
+                    document.getElementById('result-text').innerText = "Forensic Scan Verified: " + (data.reason || "File deemed SAFE.");
+                } else {
+                    // Still waiting / safe
                 }
             } catch (e) {
                 console.error("Link error:", e);
             }
         }
 
-        // Poll every 2 seconds
         setInterval(checkStatus, 2000);
     </script>
 </body>

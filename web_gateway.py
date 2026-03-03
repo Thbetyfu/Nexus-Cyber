@@ -111,6 +111,11 @@ def get_status():
                         return jsonify({"status": "safe"})
                         
                     if target_ip == user_ip or target_ip == "GLOBAL":
+                        # If a specific file is being polled, ignore other background alerts
+                        target_file = request.args.get("filename")
+                        if target_file and entry.get("raw_file") != target_file and target_ip != "GLOBAL":
+                            continue
+                            
                         if entry.get("status") == "MALICIOUS":
                             return jsonify({
                                 "status": "danger",
@@ -120,7 +125,7 @@ def get_status():
                                 "network_target": entry.get("network_target", {})
                             })
                         elif entry.get("status") == "CLEAN":
-                             return jsonify({"status": "safe"})
+                             return jsonify({"status": "clean", "reason": entry.get("reason"), "raw_file": entry.get("raw_file")})
                 except:
                     continue
     except:
@@ -177,13 +182,21 @@ def upload_file_ajax():
         detonation_thread = threading.Thread(target=detonate_file, args=(filepath,))
         detonation_thread.start()
         
-        # Step 7: Start dynamic AI analysis in background
-        analysis_thread = threading.Thread(target=initiate_background_analysis, args=(filepath,))
-        analysis_thread.start()
-        
-        # We always return success immediately so the frontend goes into "Scanning" state.
-        # The frontend will poll /status to get the final danger/safe result.
-        return jsonify({"status": "success", "message": "File submitted. Deep AI Scan in progress..."})
+        # Step 7: Run dynamic AI analysis synchronously to hold the loading screen
+        try:
+            analysis = sentinel_brain.analyze_file_dynamic(filepath)
+            status_code = analysis.get("status", "CLEAN")
+            
+            if status_code == "MALICIOUS":
+                # Reflex Brain flagged it
+                return jsonify({"status": "danger", "message": "Threat Detected! System Locking Down..."})
+            else:
+                # Add a brief dramatic pause if it's too fast
+                time.sleep(1)
+                return jsonify({"status": "success", "message": "Deep AI Scan Complete. File marked SAFE."})
+        except Exception as e:
+            print(f"Analysis Failed: {e}")
+            return jsonify({"status": "success", "message": "Scan failed or interrupted."})
 
 @app.route('/admin')
 @requires_auth
