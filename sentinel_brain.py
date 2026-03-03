@@ -4,6 +4,7 @@ import time
 import ollama
 import subprocess
 import requests
+import threading
 
 LOG_FILE = "/home/taqy/Nexus-Cyber/tetragon.json"
 QUARANTINE_DIR = "/home/taqy/Nexus-Cyber/quarantine"
@@ -148,6 +149,60 @@ def analyze_with_ai(content_desc, source_name, injected_network=None):
         print(f"AI/JSON Parsing Error: {e}")
         return {"status": "SAFE"}
 
+def reflex_decision(log_data):
+    """The Reflex Brain: Fast path for immediate blocking using qwen2.5-coder."""
+    # Pre-filter for common system binaries and activities to reduce noise
+    system_whitelist = [
+        '"binary": "/usr/lib', '"binary": "/usr/bin', '"binary": "/bin',
+        '"binary": "/usr/sbin/chronyd', '"binary": "/usr/sbin',
+        '"binary": "/home/taqy/Nexus-Cyber/venv/bin/python3"',
+        '"binary": "/usr/share/antigravity', '"binary": "/usr/local/bin/ollama'
+    ]
+    if any(item in log_data for item in system_whitelist):
+        return "ALLOW"
+        
+    prompt = f"Berdasarkan log eBPF atau file snippet ini, jawab HANYA dengan 1 kata: BLOCK atau ALLOW.\n\nData: {log_data}"
+    
+    try:
+        response = ollama.chat(model="qwen2.5-coder", messages=[
+            {'role': 'user', 'content': prompt}
+        ])
+        decision = response['message']['content'].strip().upper()
+        if "BLOCK" in decision:
+            return "BLOCK"
+        return "ALLOW"
+    except Exception as e:
+        print(f"Reflex Brain Error: {e}")
+        return "ALLOW"
+        
+def forensic_analysis_task(log_data, filename, source_name, injected_network, target_ip="UNKNOWN"):
+    """The Forensic Brain: Slow, detailed analysis in a background thread."""
+    try:
+        print(f"[*] Forensic Brain starting analysis for: {filename}...")
+        analysis = analyze_with_ai(log_data, source_name, injected_network)
+        
+        if analysis.get("status") in ["MALICIOUS"]:
+            alert_data = {
+                "timestamp": time.ctime(),
+                "status": "MALICIOUS",
+                "reason": analysis.get("reason", "Malicious activity detected"),
+                "timeline": analysis.get("timeline", ["Suspicion flagged by Reflex Brain", "Forensic analysis generated details"]),
+                "action": analysis.get("action", "Process restricted and system locked"),
+                "network_target": analysis.get("network_target", injected_network) if injected_network else analysis.get("network_target", {}),
+                "raw_file": filename,
+                "target_ip": target_ip
+            }
+
+            with open("/home/taqy/Nexus-Cyber/logs/detailed_alerts.log", "a") as df:
+                df.write(json.dumps(alert_data) + "\n")
+                
+            print(f"[+] Forensic Brain finished analyzing {filename}. Details sent to UI.")
+        else:
+            print(f"[+] Forensic Brain cleared {filename} as SAFE.")
+            
+    except Exception as e:
+        print(f"[-] Forensic Brain Thread Error: {e}")
+
 def analyze_file_dynamic(filepath):
     """
     Synchronized forensic workflow:
@@ -174,10 +229,11 @@ def analyze_file_dynamic(filepath):
     injected_network = {
         "ip": detected_ip,
         "location": location,
-        "port": "N/A" # We can extrapolate or rely on Llama if it reads the log, but IP/Loc are the most important
+        "port": "N/A"
     }
     
     print(f"[+] Harvested Dynamic Data for {filename}: IP={detected_ip}, Loc={location}")
+    print(f"[*] Requesting Deep AI Analysis for {filename} with model: {MODEL}...")
 
     # Read first 2KB of file for context
     try:
@@ -186,38 +242,31 @@ def analyze_file_dynamic(filepath):
     except:
         snippet = "Binary/Unreadable content"
 
-    # Let Llama 3 analyze the static file snippet + the dynamic network knowledge we just gathered
-    analysis = analyze_with_ai(snippet, f"File Content: {filename}", injected_network)
+    # Use the Reflex Brain for msec-level lockdown
+    decision = reflex_decision(snippet)
     
-    if analysis.get("status") in ["MALICIOUS"]:
-        # Get session IP
-        target_ip = "UNKNOWN"
-        try:
-            if os.path.exists(SESSION_MAP_FILE):
-                with open(SESSION_MAP_FILE, 'r') as sm:
-                    smap = json.load(sm)
-                    target_ip = smap.get(filename, "UNKNOWN")
-        except:
-            pass
-
-        alert_data = {
-            "timestamp": time.ctime(),
-            "status": "MALICIOUS",
-            "reason": analysis.get("reason", "Malicious file detected based on dynamic behavior"),
-            "timeline": analysis.get("timeline", ["1. File execution monitored", "2. Suspicious activity flagged"]),
-            "action": analysis.get("action", "File quarantined and execution blocked"),
-            "network_target": analysis.get("network_target", injected_network),
-            "raw_file": filename,
-            "target_ip": target_ip
-        }
-
-        with open("/home/taqy/Nexus-Cyber/logs/detailed_alerts.log", "a") as df:
-            df.write(json.dumps(alert_data) + "\n")
-            
-        print(f"[!] DYNAMIC ANALYSIS DETECTED THREAT: {filename}")
-        set_keyboard_color("MALICIOUS")
+    # Get session IP first
+    target_ip = "UNKNOWN"
+    try:
+        if os.path.exists(SESSION_MAP_FILE):
+            with open(SESSION_MAP_FILE, 'r') as sm:
+                smap = json.load(sm)
+                target_ip = smap.get(filename, "UNKNOWN")
+    except:
+        pass
         
-    return analysis
+    if decision == "BLOCK":
+        print(f"[!] REFLEX BRAIN DETECTED THREAT: {filename}")
+        set_keyboard_color("MALICIOUS")
+        with open(ALERT_FILE, 'a') as af:
+            af.write(f"[{time.ctime()}] REFLEX BLOCK: {filename} from {target_ip} -> {detected_ip} ({location})\n")
+    else:
+        print(f"[+] Reflex Brain allowed execution for: {filename}")
+        
+    # Kick off the Forensic Brain asynchronously to avoid waiting
+    threading.Thread(target=forensic_analysis_task, args=(snippet, filename, f"File Content: {filename}", injected_network, target_ip)).start()
+    
+    return {"status": "MALICIOUS" if decision == "BLOCK" else "CLEAN"}
 
 def watch_quarantine():
     """Monitor industrial quarantine folder for new uploads."""
@@ -246,57 +295,42 @@ def follow_logs():
                     "args": data.get("process_kprobe", {}).get("args")
                 }
                 
-                analysis = analyze_with_ai(json.dumps(simplified), "Tetragon Log")
+                log_data_str = json.dumps(simplified)
                 
-                if analysis.get("status") == "MALICIOUS":
-                    # Extract network data if present
-                    net_target = {"ip": "N/A", "location": "N/A", "port": "N/A"}
-                    args = simplified.get("args", [])
-                    for arg in args:
-                        if isinstance(arg, dict) and "sockaddr" in str(arg).lower():
-                            addr = arg.get("sockaddr", {})
-                            ip = addr.get("addr", "N/A")
-                            port = addr.get("port", "N/A")
-                            net_target["ip"] = ip
-                            net_target["port"] = port
-                            net_target["location"] = get_ip_location(ip)
-
-                    # Associate with IP from session map
-                    target_ip = "UNKNOWN"
-                    try:
-                        if os.path.exists(SESSION_MAP_FILE):
-                            with open(SESSION_MAP_FILE, 'r') as sm:
-                                smap = json.load(sm)
-                                # Firejail copies the binary to /quarantine, so we extract just the filename
-                                binary_name = os.path.basename(simplified.get('binary', ''))
-                                target_ip = smap.get(binary_name, "UNKNOWN")
-                    except Exception as e:
-                        print(f"Session map error: {e}")
-
-                    print(f"[!] MALICIOUS ACTIVITY ({target_ip}): {simplified['binary']} -> {net_target['ip']}")
-                    
-                    # Store comprehensive forensic log
-                    alert_data = {
-                        "timestamp": time.ctime(),
-                        "status": "MALICIOUS",
-                        "reason": analysis.get("reason", "Malicious activity detected"),
-                        "timeline": analysis.get("timeline", ["Suspicious activity detected in kernel"]),
-                        "action": analysis.get("action", "Process restricted by sensor"),
-                        "network_target": net_target,
-                        "raw_binary": simplified['binary'],
-                        "target_ip": target_ip
-                    }
-                    
-                    with open("/home/taqy/Nexus-Cyber/logs/detailed_alerts.log", "a") as df:
-                        df.write(json.dumps(alert_data) + "\n")
-                        
-                    with open(ALERT_FILE, 'a') as af:
-                        af.write(f"[{time.ctime()}] MALICIOUS SYSCALL ({target_ip}): {line}\n")
-                        
-                    # Hardware alert is physical, so it's a global indicator naturally.
+                # 1. Reflex Brain (Fast Path)
+                decision = reflex_decision(log_data_str)
+                
+                # Extract basic info quickly
+                binary_name = os.path.basename(simplified.get('binary', ''))
+                target_ip = "UNKNOWN"
+                try:
+                    if os.path.exists(SESSION_MAP_FILE):
+                        with open(SESSION_MAP_FILE, 'r') as sm:
+                            smap = json.load(sm)
+                            target_ip = smap.get(binary_name, "UNKNOWN")
+                except:
+                    pass
+                
+                if decision == "BLOCK":
+                    print(f"[!] REFLEX BRAIN SYSCALL BLOCK: {binary_name}")
                     set_keyboard_color("MALICIOUS")
-                # Removed 'else' to latch alert as per previous fix
-                    
+                    with open(ALERT_FILE, 'a') as af:
+                        af.write(f"[{time.ctime()}] REFLEX SYSCALL BLOCK: {binary_name} ({target_ip})\n")
+                        
+                # 2. Forensic Brain (Slow Path Async)
+                net_target = {"ip": "Local/None", "location": "Local/None", "port": "N/A"}
+                args = simplified.get("args", [])
+                for arg in args:
+                    if isinstance(arg, dict) and "sockaddr" in str(arg).lower():
+                        addr = arg.get("sockaddr", {})
+                        ip = addr.get("addr", "N/A")
+                        port = addr.get("port", "N/A")
+                        net_target["ip"] = ip
+                        net_target["port"] = port
+                        net_target["location"] = get_ip_location(ip)
+                        
+                threading.Thread(target=forensic_analysis_task, args=(log_data_str, binary_name, "Tetragon Syscall Log", net_target, target_ip)).start()
+                
             except Exception as e:
                 pass
 
