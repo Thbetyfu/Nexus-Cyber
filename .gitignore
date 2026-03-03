@@ -1,1 +1,10 @@
-venv/\ntetragon.json\n*.json.gz\nlogs/\nquarantine/\n/tmp/*\n*.o\n*.tar.gz
+venv/
+tetragon.json
+*.json.gz
+logs/
+quarantine/
+/tmp/*
+*.o
+*.tar.gz
+dist/
+__pycache__/

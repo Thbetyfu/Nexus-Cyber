@@ -22,9 +22,9 @@ mkdir -p "$PROJECT_DIR/logs"
 pkill -f "sentinel_brain.py" || true
 pkill -f "web_gateway.py" || true
 
-# Start Sentinel-Brain (AI Syscall Monitor & Hardware Sync)
-nohup python3 -u "$PROJECT_DIR/sentinel_brain.py" > "$PROJECT_DIR/logs/sentinel.log" 2>&1 &
-echo "[+] Sentinel-Brain launched as Daemon."
+# Start Sentinel-Brain (AI Syscall Monitor & Hardware Sync - Encrypted)
+nohup python3 -u "$PROJECT_DIR/dist/sentinel_brain.py" > "$PROJECT_DIR/logs/sentinel.log" 2>&1 &
+echo "[+] Sentinel-Brain (Encrypted) launched as Daemon."
 
 # Start Web Gateway (Secure Upload & Sandbox Detonator)
 nohup python3 -u "$PROJECT_DIR/web_gateway.py" > "$PROJECT_DIR/logs/web.log" 2>&1 &
