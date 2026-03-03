@@ -330,6 +330,19 @@ def follow_logs():
                 
                 log_data_str = json.dumps(simplified)
                 
+                # Global Whitelist: Ignore normal system background tasks for both AI Brains
+                system_whitelist = [
+                    '"binary": "/usr/lib', '"binary": "/usr/bin', '"binary": "/bin',
+                    '"binary": "/usr/sbin', '"binary": "/sbin', '"binary": "/opt',
+                    '"binary": "/home/taqy/Nexus-Cyber/venv/bin/python3"',
+                    '"binary": "/usr/share/antigravity', '"binary": "/usr/local/bin/ollama',
+                    '"binary": "/usr/libexec', '"binary": "/etc', '"binary": "/var',
+                    '"binary": "/snap', '"binary": "exe"', '"binary": "ps"', 
+                    '"binary": "/run', '"binary": "/sys', '"binary": "/proc'
+                ]
+                if any(item in log_data_str for item in system_whitelist):
+                    continue
+                
                 decision = reflex_decision(log_data_str)
                 
                 # Extract basic info quickly
