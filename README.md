@@ -4,138 +4,92 @@
 ![OS](https://img.shields.io/badge/OS-Pop!_OS%2024.04-blue?style=for-the-badge&logo=popos)
 ![Hardware](https://img.shields.io/badge/Hardware-ASUS%20TUF%20Integration-red?style=for-the-badge&logo=asus)
 
-**Nexus-Cyber** is an advanced, autonomous security monitoring system designed for **ASUS TUF Gaming** laptops running **Pop!_OS**. It combines low-level kernel observability with modern Large Language Models (LLMs), sandboxed detonation, and physical hardware feedback to create a truly interactive defense environment.
+**Nexus-Cyber** is a fully autonomous, AI-driven XDR (Extended Detection and Response) daemon built exclusively for **ASUS TUF Gaming** laptops running **Pop!_OS**. It bridges the gap between deep-kernel observability, ruthless application sandboxing, and state-of-the-art dual-model Large Language Models (LLMs) to natively analyze, isolate, and physically respond to zero-day threats in real-time.
 
 ---
 
-## 🚀 Key Features
+## 🏛️ The 5 Pillars of Nexus-Cyber (Core Architecture)
 
-### 🔍 1. Tetragon eBPF Monitoring
-The system hooks into the Linux kernel using **Cilium Tetragon**. It monitors critical syscalls in real-time:
-- `sys_openat`: Tracking every file access attempt.
-- `sys_connect`: Monitoring all outgoing network connections.
-Logs are streamed in JSON format for instant AI processing.
+Nexus-Cyber isn't just a scanner; it's a multi-layered security engineering marvel designed for zero-trust environments.
 
-### 🧠 2. The Dual-Brain AI Architecture (New)
-The core analysis engine (`sentinel_brain.py`) now runs a highly advanced Dual-Brain architecture to balance speed and forensic depth:
-- ⚡ **The Reflex Brain (`qwen2.5-coder`)**: A lightweight, synchronous model that acts instantly. It reads raw eBPF logs and outputs only `BLOCK` or `ALLOW`. If it detects danger, it triggers the hardware lockdown in milliseconds.
-- 🕵️ **The Forensic Brain (`llama3`)**: An asynchronous background thread spawned after a `BLOCK` decision. It parses the logs deeply to generate a comprehensive JSON report (Timeline, Exploit Reasoning, Network Targets) without lagging the main OS.
+### 🚪 1. The Air-Gap Gateway (Ingestion & Uploads)
+Built on an advanced asynchronous **Flask/AJAX** backend, the web gateway handles incoming files without freezing the user interface. 
+- **Session Mapping**: Crucially, it tracks the origin IP of every uploaded file (`session_map.json`). If a malicious file is uploaded, the resulting lockdown is *isolated to that specific user*. The system remains fully operational for other tenants, preventing denial-of-service via global lockdowns.
 
-### 🚨 3. Hardware-Alert Sync
-Integrated directly with **`asusctl`** (Aura Sync). If a threat is detected:
-- 🔴 **Keyboard Glows Red**: Immediate physical feedback triggered by the Reflex Brain.
-- 🔵 **Keyboard Returns to Blue**: Normal status restored.
+### 💣 2. The Detonation Chamber (Execution Isolation)
+Uploaded files are never executed on the host. Nexus-Cyber delegates execution to heavily restricted **Firejail** sandboxes.
+- **Lethal Environment**: The sandbox strips network access (`--net=none`) to prevent data exfiltration and restricts file system views (`--private`) to protect the host OS.
+- **Time-Bomb Protocol**: Every detonation is governed by a strict 10-second timeout before the process is ruthlessly force-killed.
 
-### 🌐 4. Military Defense Dashboard (Real-Time UI)
-A futuristic, military-style web portal built with **Tailwind CSS**.
-- **Live Polling**: Frontend pings the backend every 2s for status updates.
-- **Visual Alert**: If a breach occurs, the entire UI turns into a red-flashing **"SYSTEM LOCKED"** warning.
-- **Multi-Tenant Lockdown**: If multiple users are on the system, only the IP address that uploaded the malware gets locked out, while others remain safe.
+### 👁️ 3. The eBPF Senses (Kernel-Level Observability)
+Static analysis isn't enough. Nexus-Cyber uses **Cilium Tetragon** to hook directly into the Linux kernel using eBPF, granting God-mode visibility into what the malware *actually* does:
+- `sys_openat` and `sys_execve`: Catches ransomware attempting to encrypt files or payloads attempting fileless execution (`curl | bash`).
+- `sys_connect`: Intercepts reverse shell attempts and data exfiltration outbounds.
 
-### ☢️ 5. Auto-Detonate (Sandboxing) & Lethal Simulation
-Every file uploaded remains isolated. The system automatically creates a **Firejail Sandbox**:
-- **Network Isolation**: Controllable via Tetragon to monitor data exfiltration.
-- **Restricted Access**: `--private` directory to protect the host OS.
-- **Auto-Kill**: 10-second execution timeout before the process is force-killed.
-- **Real-World Threat Testing**: Built-in test scripts capable of simulating Reverse Shells, Fileless Executions (`curl | bash`), Data Exfiltration, and Crontab Persistence.
+### 🧠 4. The Dual-Brain AI (Cognitive Defense)
+The pinnacle of Nexus-Cyber's architecture is its asynchronous, dual-model AI reasoning engine (`sentinel_brain.py`):
+- ⚡ **The Reflex Brain (`qwen2.5-coder`)**: A deeply optimized, lightweight model that reads the raw eBPF JSON stream synchronously. It outputs a single decision: `BLOCK` or `ALLOW` within milliseconds, ensuring immediate threat containment.
+- 🕵️ **The Forensic Brain (`llama3`)**: Running natively in a background Python `Thread`, Llama 3 deeply analyzes the isolated syscalls to generate a comprehensive, human-readable JSON forensic report (Timeline, Attack Vectors, Target IPs) without causing any UI or system latency.
 
-### 🛡️ 6. Secure Admin Control Panel
-A dedicated, authenticated dashboard (`/admin`) to manually clear threat states:
-- **System Purge**: One-click reset to wipe forensic logs, clear quarantine, and reset hardware LEDs.
-- **Basic Auth Protected**: Hardcoded military-grade password requirement.
-- **Fallback**: Includes a local `emergency_reset.sh` script to force reset if the web UI is inaccessible.
-
-### 👻 7. Ghost Mode (Automated Persistence)
-Runs natively as a Linux **systemd daemon**. The system starts automatically at boot, ensuring your laptop is always protected.
+### 🔴 5. The Hardware Feedback (Physical Alerting)
+Breaking the digital barrier, Nexus-Cyber interfaces directly with **`asusctl`** (Aura Sync). 
+- When the Reflex Brain detects a catastrophic threat, it instantly hijacks the laptop's physical keyboard RGB lighting, turning it a flashing **CRITICAL RED**. 
+- The system visually screams at the engineer even if their terminal window is minimized.
 
 ---
 
-## 🛠️ Architecture
+## ☢️ Real-World Threat Simulation Suite
+Nexus-Cyber comes equipped with `advanced_malware.sh`, a lethally engineered script designed to stress-test the AI's detection algorithms using professional APT (Advanced Persistent Threat) tactics:
+1. **Reverse Shells**: Simulated remote access connection triggers via `/dev/tcp`.
+2. **Fileless Execution**: In-memory payloads piped directly via `curl | bash`.
+3. **Data Exfiltration**: Extracting `/etc/passwd` via HTTP POST.
+4. **Crontab Persistence**: Injecting auto-start malware to survive reboots.
+
+---
+
+## 🛠️ Architecture Flow
 
 ```mermaid
 graph TD
-    User((User/Attacker)) -->|Upload File| Web[Web Gateway Port:5000]
-    Web -->|Save & Sandbox| Quaran[/quarantine/]
-    Quaran -->|Auto-Detonate| Firejail[Firejail Sandbox]
-    Kernel[Linux Kernel eBPF] -->|Syscall Logs| Tetra[Tetragon Engine]
-    Tetra -->|JSON Stream| Tracker[Log Scraper & Injector]
+    User((Attacker/User)) -->|Suspicious Payload| Web[Air-Gap Gateway Port:5000]
+    Web -->|Session Mapping| Quaran[/Detonation Chamber/]
+    Quaran -->|Isolated Execution| Firejail[Firejail Sandbox]
+    Kernel[Linux Kernel eBPF] -->|Real-time Syscalls| Tetra[Tetragon Engine]
+    Tetra -->|JSON Stream| Scraper[Log Harvester]
     
-    Tracker -->|Millisecond Decision| Reflex[Reflex Brain: Qwen2.5]
-    Reflex -->|Status: BLOCK| Hardware[ASUS RED Alert]
-    Reflex -->|Status: BLOCK| Logs[(Alert Logs/alerts.txt)]
+    Scraper -->|Millisecond Triage| Reflex[⚡ The Reflex Brain: Qwen2.5]
+    Reflex -->|Verdict: BLOCK| Hardware[🔴 ASUS Hardware Override]
+    Reflex -->|Verdict: BLOCK| UI[Flashing Red Lockdown UI]
     
-    Reflex -->|Spawns Thread| Forensic[Forensic Brain: Llama 3]
-    Forensic -->|Deep Analysis| LogsDetailed[(detailed_alerts.log)]
-    
-    Web -->|Poll Status| LogsDetailed
-    LogsDetailed -->|Danger Alert| UI[Flashing Red Lockdown UI]
+    Reflex -->|Spawns Thread| Forensic[🕵️ The Forensic Brain: Llama 3]
+    Forensic -->|Deep Analysis| LogsDetailed[(Forensic JSON Report)]
 ```
 
 ---
 
-## 📦 Requirements
+## 📂 System Deployment (Ghost Mode)
+Nexus-Cyber operates continuously as an autonomous **systemd daemon**, ensuring enterprise-grade persistence.
 
-- **OS**: Pop!_OS 24.04 (Noble) or Ubuntu-based.
-- **Hardware**: ASUS TUF/ROG Laptop (for `asusctl`).
-- **Tools**:
-  - `ollama` (Llama 3)
-  - `firejail` (Sandbox)
-  - `tetragon` (eBPF)
-  - `asusctl` (Hardware)
-
----
-
-## 🚦 Deployment (Ghost Mode)
-
-To set up Nexus-Cyber as an autonomous background service:
-
-1. **Install Service**:
-   ```bash
-   chmod +x start_ghost.sh
-   sudo cp nexus-sentinel.service /etc/systemd/system/
-   ```
-
-2. **Initialize Defense**:
-   ```bash
-   sudo systemctl daemon-reload
-   sudo systemctl enable --now nexus-sentinel.service
-   ```
-
-3. **Monitor Activity**:
-   ```bash
-   # View AI internal logic
-   tail -f logs/sentinel.log
-   # View Web Gateway traffic
-   tail -f logs/web.log
-   ```
-
----
-
-## 📂 Project Structure
-```text
-Nexus-Cyber/
-├── web_gateway.py        # Flask UI & Sandbox Detonator
-├── sentinel_brain.py     # AI Log Analyst & Hardware Sync
-├── start_ghost.sh        # Background Daemon Script
-├── nexus-sentinel.service# Systemd Service Definition
-├── tetragon-policy.yaml  # eBPF Kernel Policy
-├── templates/            # Cyber Dashboard (HTML/JS)
-├── logs/                 # AI Alerts & Audit Logs
-└── quarantine/           # Isolated Sandbox Directory
+```bash
+# Initialize Ghost Mode Deployment
+chmod +x start_ghost.sh
+sudo cp nexus-sentinel.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now nexus-sentinel.service
 ```
 
 ---
 
-## ⚖️ License
-This project is built for security research and ethical defensive demonstration. **Use responsibly.**
+## 🔒 Secure Admin Control Panel
+A hard-coded, Basic-Auth authenticated dashboard (`/admin`) allows engineers to issue a **System Purge**:
+- Wipes all forensic logs and active threat states.
+- Cleans the quarantine directory.
+- Resets ASUS RGB hardware back to safe mode (Blue).
+- Includes an `emergency_reset.sh` CLI fallback for total system recovery.
 
 ---
 
-## 🛠️ Pengembangan Lanjutan (Future Roadmaps)
-Berikut adalah rencana pengembangan untuk meningkatkan kemampuan Nexus-Cyber:
-1. **Automated Containment**: Implementasi fitur *Auto-Kill* pada PID mencurigakan dan blokir IP via *Firewall* secara otomatis.
-2. **Deep Forensic Sandbox**: Analisis trafik jaringan (`PCAP`) di dalam sandbox dan deteksi perubahan file sistem secara mendalam.
-3. **Visualization 2.0**: Dashboard interaktif dengan peta serangan *Real-time* dan analitik riwayat ancaman.
-4. **Hardware Safety**: Kontrol fan otomatis (Turbo Mode) dan *CPU Throttling* saat mendeteksi beban kerja ilegal (seperti cryptomining).
-5. **Remote Alerts**: Integrasi Bot Telegram/Discord untuk notifikasi ancaman saat pengguna tidak berada di depan laptop.
-6. **LLM Optimization**: Penggunaan model AI yang lebih ringan dan spesifik untuk keamanan guna meningkatkan kecepatan klasifikasi log.
+## ⚖️ License & Disclaimer
+This project is engineered for advanced security research, forensic demonstration, and ethical defense strategies. **Do not use in production without expert review.**
+
+*Designed with precision.* 🛡️
