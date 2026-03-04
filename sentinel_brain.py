@@ -178,20 +178,8 @@ def analyze_with_ai(content_desc, source_name, injected_network=None):
         return {"status": "SAFE"}
 
 def reflex_decision(log_data):
-    """The Reflex Brain: Fast path for immediate blocking using qwen2.5-coder."""
-    # Pre-filter for common system binaries and activities to reduce noise
-    system_whitelist = [
-        '"binary": "/usr/lib', '"binary": "/usr/bin', '"binary": "/bin',
-        '"binary": "/usr/sbin', '"binary": "/sbin', '"binary": "/opt',
-        '"binary": "/home/taqy/Nexus-Cyber/venv/bin/python3"',
-        '"binary": "/usr/share/antigravity', '"binary": "/usr/local/bin/ollama',
-        '"binary": "/usr/libexec', '"binary": "/etc', '"binary": "/var',
-        '"binary": "/snap', '"binary": "exe"', '"binary": "ps"', 
-        '"binary": "/run', '"binary": "/sys', '"binary": "/proc'
-    ]
-    if any(item in log_data for item in system_whitelist):
-        return "ALLOW"
-        
+    # Whitelist checks are now handled in follow_logs()
+    pass
     prompt = f"Berdasarkan log eBPF atau file snippet ini, tentukan apakah ini ancaman berbahaya. Jawab HANYA dengan 1 kata mutlak: BLOCK atau ALLOW.\n\nData: {log_data}"
     
     try:
@@ -341,17 +329,22 @@ def follow_logs():
                     "args": data.get("process_kprobe", {}).get("args")
                 }
                 
+                # OPTIMIZATION: Prevent Qwen overload! Only analyze network/file syscalls and execs!
+                if simplified["func"] not in [None, "", "__x64_sys_openat", "__x64_sys_connect", "tcp_connect", 'tcp_v4_connect', 'tcp_v6_connect']:
+                    continue
+
                 log_data_str = json.dumps(simplified)
                 
                 # Global Whitelist: Ignore normal system background tasks for both AI Brains
                 system_whitelist = [
-                    '"binary": "/usr/lib', '"binary": "/usr/bin', '"binary": "/bin',
-                    '"binary": "/usr/sbin', '"binary": "/sbin', '"binary": "/opt',
-                    '"binary": "/home/taqy/Nexus-Cyber/venv/bin/python3"',
-                    '"binary": "/usr/share/antigravity', '"binary": "/usr/local/bin/ollama',
-                    '"binary": "/usr/libexec', '"binary": "/etc', '"binary": "/var',
-                    '"binary": "/snap', '"binary": "exe"', '"binary": "ps"', 
-                    '"binary": "/run', '"binary": "/sys', '"binary": "/proc'
+                    '"binary": "/usr/lib"', '"binary": "/usr/lib/', '"binary": "/usr/libexec"',
+                    '"binary": "/opt/"', '"binary": "/home/taqy/Nexus-Cyber/venv/bin/python3"',
+                    '"binary": "/usr/share/"', '"binary": "/usr/local/bin/ollama"',
+                    '"binary": "/etc/"', '"binary": "/var/"', '"binary": "/snap/"', 
+                    '"binary": "/run/"', '"binary": "/sys/"', '"binary": "/proc/"',
+                    '"binary": "/usr/bin/gnome-', '"binary": "/usr/bin/Xwayland"',
+                    '"binary": "/usr/bin/dbus"', '"binary": "/usr/bin/pulseaudio"',
+                    '"binary": "/usr/bin/pkill"', '"binary": "/usr/share/code"'
                 ]
                 if any(item in log_data_str for item in system_whitelist):
                     continue
