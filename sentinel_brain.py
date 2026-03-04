@@ -336,22 +336,23 @@ def follow_logs():
                 log_data_str = json.dumps(simplified)
                 
                 # Global Whitelist: Ignore normal system background tasks for both AI Brains
+                # Use simple substrings to ensure matching regardless of exact trailing quotes from JSON.
                 system_whitelist = [
-                    '"binary": "/usr/lib"', '"binary": "/usr/lib/', '"binary": "/usr/libexec"',
-                    '"binary": "/opt/"', '"binary": "/home/taqy/Nexus-Cyber/venv/bin/python3"',
-                    '"binary": "/usr/share/"', '"binary": "/usr/local/bin/ollama"',
-                    '"binary": "/etc/"', '"binary": "/var/"', '"binary": "/snap/"', 
-                    '"binary": "/run/"', '"binary": "/sys/"', '"binary": "/proc/"',
+                    '"binary": "/usr/lib/', '"binary": "/usr/libexec/',
+                    '"binary": "/opt/', '"binary": "/home/taqy/Nexus-Cyber/venv/bin/python3',
+                    '"binary": "/usr/share/', '"binary": "/usr/local/bin/ollama',
+                    '"binary": "/etc/', '"binary": "/var/', '"binary": "/snap/', 
+                    '"binary": "/run/', '"binary": "/sys/', '"binary": "/proc/',
                     
                     # Core Linux Binaries
-                    '"binary": "/usr/bin/gnome-', '"binary": "/usr/bin/Xwayland"',
-                    '"binary": "/usr/bin/dbus"', '"binary": "/usr/bin/pulseaudio"',
-                    '"binary": "/usr/bin/pkill"', '"binary": "/usr/share/code"',
-                    '"binary": "/usr/bin/asusd"', '"binary": "/usr/bin/asusctl"',
-                    '"binary": "/usr/bin/sudo"', '"binary": "/usr/bin/systemctl"',
-                    '"binary": "/usr/bin/journalctl"', '"binary": "/usr/bin/grep"',
-                    '"binary": "/usr/bin/tail"', '"binary": "/usr/bin/git"',
-                    '"binary": "/usr/bin/sh"', '"binary": "/usr/bin/bash"',
+                    '"binary": "/usr/bin/gnome-', '"binary": "/usr/bin/Xwayland',
+                    '"binary": "/usr/bin/dbus', '"binary": "/usr/bin/pulseaudio',
+                    '"binary": "/usr/bin/pkill"', '"binary": "/usr/share/code"', # Needs exact quote to avoid killing things that just have 'code' in path
+                    '"binary": "/usr/bin/asusd', '"binary": "/usr/bin/asusctl',
+                    '"binary": "/usr/bin/sudo', '"binary": "/usr/bin/systemctl',
+                    '"binary": "/usr/bin/journalctl', '"binary": "/usr/bin/grep',
+                    '"binary": "/usr/bin/tail', '"binary": "/usr/bin/git',
+                    '"binary": "/usr/bin/sh"', '"binary": "/usr/bin/bash"',   
                     '"binary": "/usr/bin/ps"', '"binary": "/usr/bin/cat"',
                     '"binary": "/usr/bin/sed"', '"binary": "/usr/bin/awk"',
                     '"binary": "/usr/bin/ls"', '"binary": "/usr/bin/rm"',
@@ -360,9 +361,9 @@ def follow_logs():
                     '"binary": "/bin/sh"', '"binary": "/bin/bash"',
                     '"binary": "/bin/ps"', '"binary": "/bin/cat"',
 
-                    # Common User App Executables
-                    '"binary": "/home/taqy/.vscode-server"',
-                    '"binary": "/home/taqy/.local/share/Steam"',
+                    # Common User App Executables (without trailing quotes)
+                    '"binary": "/home/taqy/.vscode-server',
+                    '"binary": "/home/taqy/.local/share/Steam',
                     '"binary": "exe"', '"binary": "wine"', '"binary": "proton"',
                     '"binary": "language_server_linux_x64"',
                     '"binary": "system76-power"', '"binary": "system76-scheduler"',
