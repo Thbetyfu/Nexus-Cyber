@@ -91,5 +91,5 @@ A hard-coded, Basic-Auth authenticated dashboard (`/admin`) allows engineers to 
 
 ## ⚖️ License & Disclaimer
 This project is engineered for advanced security research, forensic demonstration, and ethical defense strategies. **Do not use in production without expert review.**
-
+s
 *Designed with precision.* 🛡️

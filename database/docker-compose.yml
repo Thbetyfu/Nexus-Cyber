@@ -1,0 +1,23 @@
+version: '3.8'
+services:
+  mysql:
+    build: .
+    container_name: nexus-ktp-db
+    environment:
+      MYSQL_ROOT_PASSWORD: nexus_root_2024
+      MYSQL_DATABASE: ktp_database
+      MYSQL_USER: ktp_user
+      MYSQL_PASSWORD: ktp_password_123
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - nexus_network
+
+volumes:
+  mysql_data:
+
+networks:
+  nexus_network:
+    driver: bridge
