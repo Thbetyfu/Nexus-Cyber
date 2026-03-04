@@ -1,65 +1,93 @@
-import os
-import json
-import time
+import asyncio
 import ollama
+import json
 import logging
+from datetime import datetime
 
-logger = logging.getLogger("ForensicBrain")
+logger = logging.getLogger(__name__)
 
-def forensic_analysis_task(query: str, client_ip: str, reflex_blocked: bool):
-    """
-    Background job to deeply analyze dropped/allowed SQL queries via Llama3.
-    """
-    logger.info(f"[*] Forensic Brain starting analysis for query from {client_ip}...")
-    prompt_path = os.path.join(os.path.dirname(__file__), "prompts", "behavioral_analysis.md")
+class Forensic_Brain:
+    """Llama 3: Deep forensic analysis & timeline generation."""
     
-    try:
-        with open(prompt_path, "r") as f:
-            template = f.read()
+    def __init__(self, model='llama3'):
+        self.model = model
+        self.client = ollama.Client()
+    
+    async def analyze_threat(self, query_info, client_addr):
+        """Generate forensic report for threat."""
+        
+        prompt = f"""You are a cybersecurity forensicator. Analyze this SQL threat:
+
+QUERY: {query_info['query']}
+SOURCE IP: {client_addr[0]}
+REFLEX VERDICT: {query_info['verdict']}
+
+Generate a comprehensive forensic report in JSON format:
+{{
+    "incident_summary": "...",
+    "attack_timeline": [...],
+    "affected_data": {{...}},
+    "attack_vectors": [...],
+    "attacker_profile": "...",
+    "recommended_actions": [...],
+    "severity": "CRITICAL|HIGH|MEDIUM|LOW"
+}}"""
+
+        try:
+            # We want to use to_thread so it doesn't block asyncio main loop
+            response = await asyncio.to_thread(
+                self.client.generate,
+                model=self.model,
+                prompt=prompt,
+                stream=False
+            )
             
-        full_prompt = template.replace("{query}", query).replace("{client_ip}", client_ip).replace("{reflex_blocked}", str(reflex_blocked))
+            forensic_report = self._parse_response(response['response'])
+            
+            # Save to database (in our case detailed_alerts.log)
+            await self._save_forensic_report(forensic_report, query_info, client_addr)
+            
+            return forensic_report
+            
+        except Exception as e:
+            logger.error(f"Forensic Brain error: {e}")
+    
+    async def _save_forensic_report(self, report, query_info, client_addr):
+        """Save to audit log."""
+        log_file = "/home/taqy/Nexus-Cyber/logs/detailed_alerts.log"
+        time_str = datetime.now().strftime("%a %b %2d %H:%M:%S %Y")
         
-        response = ollama.chat(model="llama3", messages=[
-            {'role': 'user', 'content': full_prompt}
-        ])
-        
-        response_text = response['message']['content'].strip()
-        start_idx = response_text.find('{')
-        end_idx = response_text.rfind('}') + 1
-        
-        if start_idx != -1 and end_idx != 0:
-            json_str = response_text[start_idx:end_idx]
-            analysis = json.loads(json_str)
+        # Determine status from Reflex verdict
+        reflex_v = query_info.get('verdict', {})
+        status = "MALICIOUS" if reflex_v.get('risk_level') in ['CRITICAL', 'HIGH'] else "SAFE"
+        if status == "MALICIOUS":
+            action = "Connection Dropped. Threat isolated."
         else:
-            raise ValueError("No JSON object extracted")
-
-    except Exception as e:
-        logger.error(f"[-] Forensic Brain JSON Error: {e}")
-        # Baseline fallback
-        analysis = {
-            "status": "MALICIOUS" if reflex_blocked else "SAFE",
-            "reason": f"AI Parsing failed. Fallback based on Reflex Action. Query: {query}",
-            "timeline": ["Query intercepted", "Reflex triggered", "Forensic failure"],
-            "action": "Dropped Connection" if reflex_blocked else "Allowed Execution",
-            "risk_level": "CRITICAL" if reflex_blocked else "LOW"
+            action = "Allow Execution."
+            
+        json_log = {
+            "timestamp": time_str,
+            "status": status,
+            "reason": report.get('incident_summary', reflex_v.get('reasoning', 'No reason provided.')),
+            "timeline": report.get('attack_timeline', []),
+            "action": action,
+            "network_target": {"ip": client_addr[0], "location": "Local", "port": client_addr[1]},
+            "query": query_info['query'],
+            "target_ip": client_addr[0],
+            "risk_level": report.get('severity', reflex_v.get('risk_level', 'LOW'))
         }
-
-    alert_data = {
-        "timestamp": time.ctime(),
-        "source_ip": client_ip,
-        "query": query,
-        "status": analysis.get("status", "MALICIOUS" if reflex_blocked else "SAFE"),
-        "reason": analysis.get("reason", "Malicious SQL Payload"),
-        "timeline": analysis.get("timeline", []),
-        "action": analysis.get("action", "Dropped Connection" if reflex_blocked else "Allowed"),
-        "risk_level": analysis.get("risk_level", "HIGH" if reflex_blocked else "LOW")
-    }
-
-    # Write alert log
-    log_dir = "/home/taqy/Nexus-Cyber/logs"
-    os.makedirs(log_dir, exist_ok=True)
-    with open(os.path.join(log_dir, "detailed_alerts.log"), "a") as df:
-        df.write(json.dumps(alert_data) + "\n")
         
-    logger.info(f"[+] Forensic Brain completed analysis for {client_ip}. Logged.")
-
+        try:
+             with open(log_file, "a") as f:
+                 f.write(json.dumps(json_log) + "\n")
+        except:
+             pass
+    
+    def _parse_response(self, response_text):
+        """Parse Llama response."""
+        import json
+        try:
+            json_str = response_text[response_text.find('{'):response_text.rfind('}')+1]
+            return json.loads(json_str)
+        except:
+            return {}
