@@ -3,8 +3,8 @@
 ## Overview
 - **Goal**: Complete pivot from eBPF malware detection to SQL-based data vault gateway
 - **Timeline**: 6 weeks (Sept 2024 - Oct 2024)
-- **Status**: Phase 0 - In Progress
-- **Last Updated**: $(date "+%d %B %Y")
+- **Status**: Phase 3 - In Progress
+- **Last Updated**: 04 March 2026
 
 ---
 
@@ -62,11 +62,11 @@
 - [x] Manual Testing & Verification
 
 **Tasks**:
-- [ ] BASIC TCP PROXY
-- [ ] QUERY EXTRACTION
-- [ ] BASIC LOGGING
-- [ ] CONFIGURATION
-- [ ] TESTING
+- [x] BASIC TCP PROXY
+- [x] QUERY EXTRACTION
+- [x] BASIC LOGGING
+- [x] CONFIGURATION
+- [x] TESTING
 
 ---
 
@@ -155,5 +155,8 @@
 ## Progress Tracker
 | Date | Phase | Status | Notes |
 |------|-------|--------|-------|
-| Sept 1 | 0 | In Progress | Starting pivot |
+| Sept 1 | 0 | COMPLETED | Starting pivot |
+| March 4 | 1 | COMPLETED | Database & Data Dummy ready |
+| March 4 | 2 | COMPLETED | TCP Proxy & SQL Parser ready |
+| March 4 | 3 | In Progress | Starting Detection Engine |
 
