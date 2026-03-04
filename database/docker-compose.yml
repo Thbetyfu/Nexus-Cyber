@@ -1,22 +1,45 @@
 version: '3.8'
+
 services:
   mysql:
-    build: .
-    container_name: nexus-ktp-db
+    image: mysql:8.0
+    container_name: nexus-cyber-db
+    
+    # Environment variables
     environment:
-      MYSQL_ROOT_PASSWORD: nexus_root_2024
-      MYSQL_DATABASE: ktp_database
-      MYSQL_USER: ktp_user
-      MYSQL_PASSWORD: ktp_password_123
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_secure_password_2024}
+      MYSQL_DATABASE: ${DB_NAME:-ktp_database}
+      MYSQL_USER: ${DB_USER:-ktp_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-ktp_password_secure_2024}
+      MYSQL_ALLOW_EMPTY_PASSWORD: 'false'
+    
+    # Port mapping: host:container
     ports:
       - "3307:3306"
+    
+    # Volume for persistent data
     volumes:
+      - ./init_db.sql:/docker-entrypoint-initdb.d/01-init.sql
       - mysql_data:/var/lib/mysql
+      - ./my.cnf:/etc/mysql/conf.d/custom.cnf
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+      interval: 10s
+    
+    # Network
     networks:
       - nexus_network
+    
+    # Restart policy
+    restart: unless-stopped
 
 volumes:
   mysql_data:
+    driver: local
 
 networks:
   nexus_network:

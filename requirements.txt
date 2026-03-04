@@ -20,7 +20,7 @@ SQLAlchemy==2.0.0
 sqlparse==0.4.4
 
 # AI & LLM
-ollama==0.0.50
+ollama>=0.5.0
 
 # Security & Environment
 python-dotenv==1.0.0
@@ -39,7 +39,7 @@ pytest-cov==4.1.0
 faker==19.0.0
 
 # Utilities
-pyyaml==6.0
+pyyaml>=6.0.1
 requests==2.31.0
 click==8.1.7
 
