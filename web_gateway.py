@@ -203,6 +203,25 @@ def upload_file_ajax():
 def admin_panel():
     return render_template('admin.html')
 
+@app.route('/api/logs')
+@requires_auth
+def get_all_logs():
+    detailed_log = "/home/taqy/Nexus-Cyber/logs/detailed_alerts.log"
+    if not os.path.exists(detailed_log):
+        return jsonify([])
+    
+    logs = []
+    try:
+        with open(detailed_log, 'r') as f:
+            lines = f.readlines()[-50:]
+            for line in reversed(lines):
+                try:
+                    logs.append(json.loads(line))
+                except: continue
+        return jsonify(logs)
+    except:
+        return jsonify([])
+
 @app.route('/reset', methods=['POST'])
 @requires_auth
 def reset_system():

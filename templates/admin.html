@@ -139,6 +139,21 @@
 
         <!-- Action Area -->
         <div class="space-y-4 md:space-y-6">
+
+            <!-- Live Alert Monitor -->
+            <div class="bg-black border border-red-900 mb-6 flex flex-col h-64 md:h-96" id="log-monitor">
+                <div class="bg-red-900 bg-opacity-30 border-b border-red-900 p-2 flex justify-between items-center">
+                    <span class="text-red-500 font-bold uppercase tracking-widest text-xs md:text-sm">DATA-VAULT GATEWAY
+                        MONITOR</span>
+                    <span class="text-red-400 text-xs flex items-center">
+                        <span id="live-indicator" class="w-2 h-2 rounded-full bg-red-500 animate-pulse mr-2"></span>
+                        LIVE
+                    </span>
+                </div>
+                <div class="flex-1 overflow-y-auto p-3 md:p-4 font-mono text-xs space-y-2" id="log-container">
+                    <div class="text-gray-500 italic">Initializing sensor network...</div>
+                </div>
+            </div>
             <button id="btn-reset"
                 class="w-full py-4 md:py-6 btn-purge text-sm md:text-lg font-black tracking-widest sm:tracking-[0.3em] md:tracking-[0.5em] text-red-500 uppercase flex items-center justify-center">
                 <svg class="w-5 h-5 md:w-6 md:h-6 mr-2 md:mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -166,6 +181,56 @@
     </div>
 
     <script>
+        // Log Monitor Polling
+        let monitorInterval;
+
+        async function fetchLogs() {
+            try {
+                const res = await fetch('/api/logs');
+                const logs = await res.json();
+
+                const container = document.getElementById('log-container');
+                container.innerHTML = '';
+
+                if (logs.length === 0) {
+                    container.innerHTML = '<div class="text-emerald-500 italic">System is clean. No recent alerts.</div>';
+                    return;
+                }
+
+                logs.forEach(log => {
+                    const el = document.createElement('div');
+                    const time = log.timestamp || new Date().toLocaleString();
+                    const statusColor = (log.status === 'MALICIOUS' || log.status === 'BLOCK') ? 'text-red-500' : 'text-emerald-500';
+                    const ip = log.source_ip || log.target_ip || log.network_target?.ip || 'SYSTEM';
+
+                    let logHTML = `
+                        <div class="border-b border-gray-900 pb-2 mb-2">
+                            <span class="text-gray-500">[${time}]</span>
+                            <span class="text-blue-400">[${ip}]</span>
+                            <span class="${statusColor} font-bold mr-2">[${log.status || 'UNKNOWN'}]</span>
+                            <span class="text-gray-300 break-all">${log.query || log.raw_file || 'No payload preview'}</span>
+                        </div>
+                    `;
+
+                    if (log.status === 'MALICIOUS' || log.status === 'BLOCK' || log.risk_level === 'HIGH' || log.risk_level === 'CRITICAL') {
+                        logHTML += `<div class="text-red-400 pl-4 mt-1">> ⚠️ ${log.reason || 'Malicious intent detected.'}</div>`;
+                        if (log.action) logHTML += `<div class="text-red-500 font-bold pl-4 mt-1 uppercase">> ACTION: ${log.action}</div>`;
+                    } else if (log.status === 'SAFE' || log.status === 'CLEAN' || log.status === 'ALLOW') {
+                        logHTML += `<div class="text-emerald-400 pl-4 mt-1">> ${log.reason || 'Deemed safe.'}</div>`;
+                    }
+
+                    el.innerHTML = logHTML;
+                    container.appendChild(el);
+                });
+            } catch (e) {
+                console.error("Failed to fetch logs:", e);
+                document.getElementById('log-container').innerHTML = '<div class="text-red-500 italic">Lost connection to telemetry server.</div>';
+            }
+        }
+
+        monitorInterval = setInterval(fetchLogs, 2000);
+        fetchLogs();
+
         document.getElementById('btn-reset').addEventListener('click', async () => {
             const overlay = document.getElementById('action-overlay');
             const progress = document.getElementById('action-progress');
@@ -203,6 +268,13 @@
                             <h3 class="text-emerald-500 font-bold mb-1 md:mb-2 uppercase tracking-wider text-sm md:text-base">[+] System Status</h3>
                             <p class="text-emerald-400 text-xs md:text-sm font-mono">Sensors normalized. Sandbox cleared. Threat containment protocols deactivated.</p>
                         `;
+
+                        document.getElementById('log-monitor').classList.remove('border-red-900');
+                        document.getElementById('log-monitor').classList.add('border-emerald-900');
+                        document.querySelector('#log-monitor > div').className = "bg-emerald-900 bg-opacity-30 border-b border-emerald-900 p-2 flex justify-between items-center";
+                        document.querySelector('#log-monitor > div span').className = "text-emerald-500 font-bold uppercase tracking-widest text-xs md:text-sm";
+                        document.querySelector('#log-monitor > div span:last-child').className = "text-emerald-400 text-xs flex items-center";
+                        document.getElementById('live-indicator').className = "w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-2";
 
                         document.querySelector('.btn-purge').outerHTML = `
                             <button class="w-full py-4 md:py-6 border-2 border-emerald-600 bg-emerald-900 bg-opacity-20 text-sm md:text-lg font-black tracking-widest sm:tracking-[0.3em] md:tracking-[0.5em] text-emerald-500 uppercase cursor-not-allowed opacity-50" disabled>
