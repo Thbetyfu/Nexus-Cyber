@@ -344,7 +344,11 @@ def follow_logs():
                     '"binary": "/run/"', '"binary": "/sys/"', '"binary": "/proc/"',
                     '"binary": "/usr/bin/gnome-', '"binary": "/usr/bin/Xwayland"',
                     '"binary": "/usr/bin/dbus"', '"binary": "/usr/bin/pulseaudio"',
-                    '"binary": "/usr/bin/pkill"', '"binary": "/usr/share/code"'
+                    '"binary": "/usr/bin/pkill"', '"binary": "/usr/share/code"',
+                    '"binary": "/usr/bin/asusd"', '"binary": "/usr/bin/asusctl"',
+                    '"binary": "/usr/bin/sudo"', '"binary": "/usr/bin/systemctl"',
+                    '"binary": "/usr/bin/journalctl"', '"binary": "/usr/bin/grep"',
+                    '"binary": "/usr/bin/tail"', '"binary": "/usr/bin/git"'
                 ]
                 if any(item in log_data_str for item in system_whitelist):
                     continue
