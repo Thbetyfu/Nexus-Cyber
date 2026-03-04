@@ -1,9 +1,39 @@
+# ===========================
+# NEXUS-CYBER PROXY CONFIGURATION
+# ===========================
+
+# Proxy Listener (client side)
 proxy:
   listen_host: "0.0.0.0"
   listen_port: 3306
-  target_host: "127.0.0.1"
-  target_port: 3307
+  
+# Backend MySQL Server
+backend:
+  host: "localhost"
+  port: 3307
+  timeout_seconds: 10
 
+# Logging
 logging:
-  level: "INFO"
-  file: "../logs/proxy.log"
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  file: "logs/proxy.log"
+  max_size_mb: 100  # Rotation size
+  backup_count: 5
+
+# Database Connection
+database:
+  enabled: true
+  log_queries: true
+  log_batch_size: 100  # Batch insert for performance
+
+# Statistics
+statistics:
+  enabled: true
+  report_interval_seconds: 60
+  track_bytes: true
+
+# Performance
+performance:
+  chunk_size_bytes: 65536  # 64KB
+  max_concurrent_connections: 1000
+  keepalive_seconds: 300

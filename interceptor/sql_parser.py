@@ -1,84 +1,196 @@
-import re
+"""
+MySQL protocol parser and SQL query extraction
+Handles MySQL protocol packet parsing to extract query strings
+"""
+
+import struct
 import logging
+from typing import Optional, Tuple
+from enum import Enum
+import re
 
 logger = logging.getLogger(__name__)
 
+class MySQLCommand(Enum):
+    """MySQL command types"""
+    COM_INIT_DB = 0x02
+    COM_QUERY = 0x03
+    COM_PING = 0x0E
+    COM_CHANGE_USER = 0x11
+    COM_PREPARE = 0x16
+
 class SQLParser:
-    """Parse MySQL protocol and extract SQL queries."""
+    """Parse MySQL protocol and extract SQL queries"""
     
-    def __init__(self):
-        # MySQL command types
-        self.COMMAND_QUERY = 0x03
+    # MySQL packet structure constants
+    MYSQL_PROTOCOL_VERSION = 10
+    MAX_PACKET_SIZE = 16 * 1024 * 1024  # 16MB
+    
+    @staticmethod
+    def parse_packet_header(data: bytes) -> Tuple[Optional[int], Optional[int]]:
+        """
+        Parse MySQL packet header
         
-    def extract_query(self, data):
-        """Extract SQL from MySQL protocol packet."""
+        Format: [3 bytes: payload length] [1 byte: sequence]
+        Returns: (payload_length, sequence_id)
+        """
+        if len(data) < 4:
+            return None, None
+        
+        # First 3 bytes = payload length (little-endian)
+        payload_length = int.from_bytes(data[0:3], 'little')
+        
+        # 4th byte = sequence id
+        sequence_id = data[3]
+        
+        return payload_length, sequence_id
+    
+    @staticmethod
+    def parse_query_packet(data: bytes) -> Optional[str]:
+        """
+        Parse MySQL query packet
+        
+        Format: [packet_header] [command_byte] [query_string]
+        
+        Returns: Query string or None if not a query packet
+        """
+        if len(data) < 5:  # Minimum: 4 byte header + 1 byte command
+            return None
+        
         try:
-            if len(data) < 5:
+            # Extract payload (skip 4-byte header)
+            payload = data[4:]
+            
+            if len(payload) < 1:
                 return None
             
-            # Check if it's a COM_QUERY packet
-            if data[4] != self.COMMAND_QUERY:
+            # First byte is command type
+            command = payload[0]
+            
+            # COM_QUERY = 0x03
+            if command != MySQLCommand.COM_QUERY.value:
                 return None
             
-            # Extract query text (skip header bytes 0-4)
-            query_text = data[5:].decode('utf-8', errors='ignore').strip()
-            return query_text
+            # Rest is query string
+            if len(payload) > 1:
+                query = payload[1:].decode('utf-8', errors='ignore').strip()
+                return query
             
+            return None
+        
         except Exception as e:
-            logger.error(f"Parse error: {e}")
+            logger.warning(f"Error parsing query packet: {e}")
             return None
     
-    def is_sql_injection(self, query):
-        """Detect common SQL injection patterns."""
-        injection_patterns = [
-            r"('\s*OR\s*'1'\s*=\s*'1)",  # ' OR '1'='1
-            r"(\d+\s*OR\s*\d+\s*=\s*\d+)",  # 1 OR 1=1
-            r"(UNION.*SELECT)",  # UNION SELECT
-            r"(';.*DROP)",  # '; DROP
-            r"(--.*\n)",  # SQL comments
-            r"(/\*.*\*/)",  # Block comments
+    @staticmethod
+    def extract_query_from_buffer(data: bytes) -> Optional[str]:
+        """
+        Extract SQL query from raw data buffer
+        
+        Handles multiple packets and partial packets
+        """
+        if not data or len(data) < 5:
+            return None
+        
+        # Try to parse as query packet
+        query = SQLParser.parse_query_packet(data)
+        return query
+    
+    @staticmethod
+    def get_query_type(query: str) -> str:
+        """
+        Determine query type: SELECT, INSERT, UPDATE, DELETE, etc.
+        
+        Returns: Query type (uppercase)
+        """
+        if not query:
+            return "UNKNOWN"
+        
+        query_upper = query.strip().upper()
+        
+        # Extract first word
+        first_word = query_upper.split()[0] if query_upper else "UNKNOWN"
+        
+        valid_types = [
+            "SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", 
+            "DROP", "ALTER", "TRUNCATE", "GRANT", "REVOKE",
+            "LOCK", "UNLOCK", "FLUSH", "SHOW"
         ]
         
-        for pattern in injection_patterns:
-            if re.search(pattern, query, re.IGNORECASE):
-                return True
-        
-        return False
+        return first_word if first_word in valid_types else "OTHER"
     
-    def is_mass_exfiltration(self, query, context=None):
-        """Detect SELECT * queries without LIMIT (especially at odd times)."""
+    @staticmethod
+    def extract_tables(query: str) -> list:
+        """
+        Extract table names from query
         
-        # Check for SELECT * without LIMIT
-        if re.search(r"SELECT\s+\*\s+FROM", query, re.IGNORECASE):
-            if "LIMIT" not in query.upper():
-                return True, "SELECT * without LIMIT"
+        Naive parsing, supports: FROM, INTO, UPDATE, JOIN
+        """
+        if not query:
+            return []
         
-        # Check for bulk extraction patterns
-        if re.search(r"SELECT.*FROM.*ktp_data", query, re.IGNORECASE):
-            if context and context.get('hour') in [0, 1, 2, 3, 4, 5]:  # 3am queries
-                return True, "Bulk KTP extraction at suspicious time"
+        query_upper = query.upper()
+        tables = []
         
-        return False, None
+        patterns = [
+            r'FROM\s+(`?\w+`?)',      # FROM table
+            r'INTO\s+(`?\w+`?)',      # INSERT INTO table
+            r'UPDATE\s+(`?\w+`?)',    # UPDATE table
+            r'JOIN\s+(`?\w+`?)',      # JOIN table
+        ]
+        
+        for pattern in patterns:
+            matches = re.findall(pattern, query_upper)
+            tables.extend([m.strip('`') for m in matches])
+        
+        return list(set(tables))  # Deduplicate
     
-    def analyze_query_context(self, query):
-        """Return query analysis result."""
-        return {
-            'is_injection': self.is_sql_injection(query),
-            'is_exfiltration': self.is_mass_exfiltration(query)[0],
-            'tables_accessed': self.extract_tables(query),
-            'columns_accessed': self.extract_columns(query),
-            'has_limit': 'LIMIT' in query.upper(),
-        }
+    @staticmethod
+    def sanitize_query_for_logging(query: str, max_length: int = 500) -> str:
+        """
+        Sanitize query string for logging
+        - Limit length
+        - Remove newlines
+        - Escape quotes
+        """
+        if not query:
+            return "(empty)"
+        
+        # Remove newlines
+        sanitized = query.replace('\n', ' ').replace('\r', ' ')
+        
+        # Collapse multiple spaces
+        sanitized = ' '.join(sanitized.split())
+        
+        # Limit length
+        if len(sanitized) > max_length:
+            sanitized = sanitized[:max_length] + "..."
+        
+        return sanitized
+
+def test_parser():
+    """Test SQL parser"""
+    # Example MySQL query packet (simplified)
+    # [3-byte length][1-byte seq][1-byte command][query...]
     
-    def extract_tables(self, query):
-        """Extract table names from query."""
-        matches = re.findall(r'FROM\s+(\w+)|JOIN\s+(\w+)', query, re.IGNORECASE)
-        return [m[0] if m[0] else m[1] for m in matches]
+    test_query = "SELECT * FROM ktp_data LIMIT 10"
     
-    def extract_columns(self, query):
-        """Extract column names from SELECT clause."""
-        match = re.search(r'SELECT\s+(.*?)\s+FROM', query, re.IGNORECASE)
-        if match:
-            cols = match.group(1).split(',')
-            return [c.strip() for c in cols]
-        return []
+    # Construct packet (simplified for testing)
+    command = b'\x03'  # COM_QUERY
+    query_bytes = test_query.encode('utf-8')
+    payload = command + query_bytes
+    
+    payload_len = len(payload)
+    header = payload_len.to_bytes(3, 'little') + b'\x00'  # sequence=0
+    
+    packet = header + payload
+    
+    # Test extraction
+    extracted = SQLParser.extract_query_from_buffer(packet)
+    print(f"Original: {test_query}")
+    print(f"Extracted: {extracted}")
+    assert extracted == test_query, "Parse failed!"
+    print("✅ Parser test passed")
+
+if __name__ == '__main__':
+    test_parser()

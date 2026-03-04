@@ -1,238 +1,361 @@
+#!/usr/bin/env python3
+"""
+Nexus-Cyber TCP Proxy for MySQL
+- Listens on 0.0.0.0:3306
+- Forwards to backend 127.0.0.1:3307
+- Logs all connections and traffic
+- Handles concurrent clients
+- Integrated with MySQL query extraction and logging
+"""
+
 import asyncio
 import logging
-import json
-import time
-from datetime import datetime
-import sys
 import os
+import sys
+import hashlib
+from datetime import datetime
+from typing import Optional, Tuple, Dict
+import json
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from sentinel_brain.reflex_brain import Reflex_Brain
-from sentinel_brain.forensic_brain import Forensic_Brain
-from executioner.connection_killer import ConnectionKiller
+from database.db_config import DatabaseManager
 from interceptor.sql_parser import SQLParser
 
+# ===========================
+# CONFIGURATION
+# ===========================
+
+PROXY_LISTEN_HOST = os.getenv('PROXY_LISTEN_HOST', '0.0.0.0')
+PROXY_LISTEN_PORT = int(os.getenv('PROXY_LISTEN_PORT', 3306))
+
+BACKEND_HOST = os.getenv('PROXY_BACKEND_HOST', 'localhost')
+BACKEND_PORT = int(os.getenv('PROXY_BACKEND_PORT', 3307))
+
+PROXY_LOG_FILE = os.getenv('PROXY_LOG_FILE', 'logs/proxy.log')
+LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')
+
+# Ensure logs directory exists
+os.makedirs(os.path.dirname(PROXY_LOG_FILE) or '.', exist_ok=True)
+
+# ===========================
+# LOGGING SETUP
+# ===========================
+
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, LOG_LEVEL),
     format='%(asctime)s [%(levelname)s] %(message)s',
     handlers=[
-        logging.StreamHandler()
+        logging.FileHandler(PROXY_LOG_FILE),
+        logging.StreamHandler(sys.stdout)
     ]
 )
 
-logger = logging.getLogger("ProxyInterceptor")
+logger = logging.getLogger(__name__)
 
-class SQLInterceptor:
-    def __init__(self, listen_host='0.0.0.0', listen_port=3306, 
-                 backend_host='127.0.0.1', backend_port=3307):
-        self.listen_host = listen_host
-        self.listen_port = listen_port
-        self.backend_host = backend_host
-        self.backend_port = backend_port
-        
-        # Instantiate Dual-Brain components and Executioner
-        self.reflex = Reflex_Brain()      # Qwen 2.5
-        self.forensic = Forensic_Brain()  # Llama 3
-        self.parser = SQLParser()
-        self.killer = ConnectionKiller()
-        
-        # Phase 5: State tracking for anomaly detection and rate limiting
-        self.blocked_ips = set()
-        self.query_rate_tracker = {} # ip -> [timestamps...]
-        self.volume_tracker = {} # ip -> {"bytes": 0, "start_time": time.time()}
-        
-    async def check_ip_reputation(self, ip_addr):
-        """Feature: Check IP Reputation against mock intel sets."""
-        known_malicious = ["185.15.1.20", "45.22.1.99"]
-        return ip_addr in known_malicious
-        
-    async def check_rate_limit(self, ip_addr):
-        """Feature: Connection Rate Limiting (>100 queries/min)."""
-        now = time.time()
-        if ip_addr not in self.query_rate_tracker:
-            self.query_rate_tracker[ip_addr] = []
-            
-        # keep only queries in last 60 seconds
-        self.query_rate_tracker[ip_addr] = [t for t in self.query_rate_tracker[ip_addr] if now - t < 60]
-        self.query_rate_tracker[ip_addr].append(now)
-        
-        if len(self.query_rate_tracker[ip_addr]) > 100:
-            return True
-        return False
-        
-    async def monitor_data_volume(self, ip_addr, packet_bytes, time_window=5):
-        """Feature: Query Volume Monitoring (Detect bulk exports >100,000 rows in <5 detik)."""
-        now = time.time()
-        if ip_addr not in self.volume_tracker:
-            self.volume_tracker[ip_addr] = {"bytes": 0, "start_time": now}
-            
-        tracker = self.volume_tracker[ip_addr]
-        time_elapsed = now - tracker["start_time"]
-        
-        if time_elapsed > time_window:
-            # Reset window
-            tracker["bytes"] = packet_bytes
-            tracker["start_time"] = now
-        else:
-            tracker["bytes"] += packet_bytes
-            
-        # Estimate: 1 row is approx 50 bytes conservatively. 100,000 rows = ~5MB (5,000,000 bytes)
-        estimated_rows = tracker["bytes"] / 50
-        if estimated_rows > 100000 and time_elapsed < time_window:
-            return True
-        return False
-        
-    async def check_anomalous_time(self, query):
-        """Feature: Anomalous Time Detection (Queries pada jam 3-5 pagi dengan SELECT *)."""
-        hour = datetime.now().hour
-        if hour in [0, 1, 2, 3, 4, 5] and "SELECT *" in query.upper():
-            return True
-        return False
+# ===========================
+# PROXY STATISTICS
+# ===========================
 
-    async def handle_client(self, client_reader, client_writer):
-        client_addr = client_writer.get_extra_info('peername')
-        ip_addr = client_addr[0] if isinstance(client_addr, tuple) else "127.0.0.1"
-        
-        if ip_addr in self.blocked_ips:
-            client_writer.close()
+class ProxyStats:
+    """Track proxy statistics"""
+    
+    def __init__(self):
+        self.total_connections = 0
+        self.active_connections = 0
+        self.bytes_received = 0
+        self.bytes_sent = 0
+        self.total_errors = 0
+        self.start_time = datetime.now()
+    
+    def increment_connection(self):
+        self.total_connections += 1
+        self.active_connections += 1
+    
+    def decrement_connection(self):
+        self.active_connections -= 1
+    
+    def add_bytes(self, received: int, sent: int):
+        self.bytes_received += received
+        self.bytes_sent += sent
+    
+    def increment_error(self):
+        self.total_errors += 1
+    
+    def get_stats(self) -> dict:
+        uptime = (datetime.now() - self.start_time).total_seconds()
+        return {
+            'uptime_seconds': uptime,
+            'total_connections': self.total_connections,
+            'active_connections': self.active_connections,
+            'bytes_received': self.bytes_received,
+            'bytes_sent': self.bytes_sent,
+            'total_errors': self.total_errors,
+            'throughput_mbps': (self.bytes_received + self.bytes_sent) / 1024 / 1024 / uptime if uptime > 0 else 0
+        }
+
+# Global stats instance
+stats = ProxyStats()
+
+# ===========================
+# QUERY LOGGING
+# ===========================
+
+class QueryLogger:
+    """Log queries to database"""
+    
+    def __init__(self):
+        try:
+            self.db = DatabaseManager()
+            self.logger = logger
+        except Exception as e:
+            logger.error(f"Failed to initialize DB Manager: {e}")
+            self.db = None
+    
+    def log_query(self, 
+                  query: str,
+                  source_ip: str,
+                  source_port: int,
+                  execution_time_ms: int = 0):
+        """
+        Log query to database
+        """
+        if not self.db or not query:
             return
-
-        if await self.check_ip_reputation(ip_addr):
-            logger.critical(f"🚨 BLOCKED KNOWN MALICIOUS IP: {ip_addr}")
-            self.blocked_ips.add(ip_addr)
-            await self.killer.drop_connection(ip_addr)
-            client_writer.close()
-            return
-            
-        logger.info(f"[+] New connection from {client_addr}")
         
         try:
-            backend_reader, backend_writer = await asyncio.open_connection(
-                self.backend_host, self.backend_port
+            # Sanitize query
+            safe_query = SQLParser.sanitize_query_for_logging(query)
+            
+            # Generate query hash for deduplication (optional, but requested in init_db script)
+            query_hash = hashlib.sha256(query.encode()).hexdigest()
+            
+            # Extract tables (for forensic info, matching init_db schema)
+            tables = SQLParser.extract_tables(query)
+            
+            # Log via DatabaseManager
+            # Note: DatabaseManager.log_query should handle risk_level and action_taken
+            query_id = self.db.log_query(
+                query=safe_query,
+                source_ip=source_ip,
+                risk_level='SAFE',  # Phase 2: all queries are SAFE
+                action_taken='FORWARD'
             )
             
-            await asyncio.gather(
-                self.forward_and_inspect(client_reader, backend_writer, client_addr, "REQUEST"),
-                self.forward_and_inspect(backend_reader, client_writer, client_addr, "RESPONSE")
-            )
-            
+            logger.debug(f"Query logged (ID: {query_id}) from {source_ip}")
+        
         except Exception as e:
-            logger.error(f"[ERROR] {client_addr}: {e}")
-        finally:
-            client_writer.close()
-            await client_writer.wait_closed()
-            
-    async def forward_and_inspect(self, source, dest, client_addr, direction):
-        ip_addr = client_addr[0] if isinstance(client_addr, tuple) else "127.0.0.1"
+            logger.warning(f"Failed to log query: {e}")
+
+# ===========================
+# PROXY CORE
+# ===========================
+
+class MySQLProxy:
+    """MySQL TCP Proxy"""
+    
+    def __init__(self):
+        self.server = None
+        self.logger = logger
+        self.query_logger = QueryLogger()
+    
+    async def pipe_data(self, 
+                       reader: asyncio.StreamReader, 
+                       writer: asyncio.StreamWriter,
+                       label: str,
+                       direction: str,
+                       client_ip: Optional[str] = None,
+                       client_port: Optional[int] = None) -> int:
+        """
+        Pipe data from reader to writer
+        """
+        bytes_count = 0
+        chunk_count = 0
         
         try:
             while True:
-                data = await source.read(4096)
-                if not data:
-                    break
-                    
-                if direction == "REQUEST":
-                    query = self.parser.extract_query(data)
-                    if query:
-                        logger.info(f"[SQL] Client {client_addr}: {query}")
-                        
-                        # Phase 5: Check Rate Limit
-                        if await self.check_rate_limit(ip_addr):
-                            logger.warning(f"🚨 RATE LIMIT EXCEEDED FOR {ip_addr} (>100 queries/min)")
-                            self.blocked_ips.add(ip_addr)
-                            await self.killer.drop_connection(ip_addr)
-                            dest.close()
-                            return
-                            
-                        # Phase 5: Check Anomalous Time
-                        is_anomalous = await self.check_anomalous_time(query)
-                        if is_anomalous:
-                             logger.warning(f"⚠️ SUSPICIOUS TIME DETECTED (3-5 AM) FOR SELECT * FROM {ip_addr}")
-                        
-                        # Dual-Brain: Reflex AI check
-                        verdict = await self.reflex.analyze_sql(
-                            query=query, 
-                            source_ip=ip_addr, 
-                            timestamp=datetime.now().isoformat()
-                        )
-                        
-                        risk_level = verdict.get('risk_level', 'LOW')
-                        if is_anomalous and risk_level == 'LOW':
-                              risk_level = 'HIGH' # Upgrade risk level due to anomalous timing logic
-                              verdict['risk_level'] = risk_level
-                              verdict['reasoning'] = "Upgraded to HIGH due to anomalous operations block list."
-                              
-                        logger.info(f"[*] Reflex Brain Risk: {risk_level} | Threat: {verdict.get('threat_type')}")
-                        
-                        query_info = {
-                             'query': query,
-                             'source_ip': ip_addr,
-                             'verdict': verdict
-                        }
-                        
-                        if risk_level in ["CRITICAL", "HIGH"]:
-                            if risk_level == "CRITICAL":
-                                logger.critical(f"🛑 CRITICAL THREAT. BLOCKING: {query_info}")
-                                self.blocked_ips.add(ip_addr)
-                                await self.killer.drop_connection(ip_addr)
-                                
-                            # Always fire Forensic Analysis to review the event
-                            asyncio.create_task(self.forensic.analyze_threat(query_info, client_addr))
-                            
-                            if risk_level == "CRITICAL":
-                                dest.close()
-                                return
-                        else:
-                            # Log safe queries too via Forensic Brain
-                            asyncio.create_task(self.forensic.analyze_threat(query_info, client_addr))
-
-                elif direction == "RESPONSE":
-                    # Phase 5: Handle Data Volume Exfiltration Monitoring dynamically
-                    is_exfil = await self.monitor_data_volume(ip_addr, len(data))
-                    if is_exfil:
-                         logger.critical(f"🛑 EXFILTRATION PATTERN DETECTED from {ip_addr}! Dropping Connection.")
-                         self.blocked_ips.add(ip_addr)
-                         await self.killer.drop_connection(ip_addr)
-                         
-                         query_info = {
-                             'query': 'UNKNOWN_VOLUMETRIC_EXFILTRATION_ACTIVITY',
-                             'source_ip': ip_addr,
-                             'verdict': {
-                                 'risk_level': 'CRITICAL', 
-                                 'threat_type': 'EXFILTRATION', 
-                                 'reasoning': 'Detected >100,000 rows extracted within a <5s window. Volumetric alert.'
-                             }
-                         }
-                         # Forensic capture of Exfiltration
-                         asyncio.create_task(self.forensic.analyze_threat(query_info, client_addr))
-                         dest.close()
-                         return
-
-                # Proceed to forward data unhindered if checks pass
-                dest.write(data)
-                await dest.drain()
+                # Read chunk from source
+                data = await reader.read(65536)  # 64KB chunks
                 
-        except Exception as e:
-            pass # Socket close/fail is normal, suppressed to avoid noise
+                if not data:
+                    self.logger.debug(f"[{label}] {direction}: EOF reached")
+                    break
+                
+                bytes_count += len(data)
+                chunk_count += 1
+                
+                # If C2B direction, try to extract and log query
+                if direction == "C→B" and client_ip:
+                    try:
+                        query = SQLParser.extract_query_from_buffer(data)
+                        if query:
+                            self.query_logger.log_query(query, client_ip, client_port or 0)
+                    except Exception as e:
+                        self.logger.debug(f"Parser error on chunk: {e}")
+                
+                # Write to destination
+                writer.write(data)
+                await writer.drain()
             
+            # Graceful close
+            writer.close()
+            try:
+                await writer.wait_closed()
+            except:
+                pass
+            
+            self.logger.debug(f"[{label}] {direction}: Closed ({bytes_count} total bytes)")
+            
+        except asyncio.CancelledError:
+            self.logger.debug(f"[{label}] {direction}: Task cancelled")
+            raise
+        
+        except Exception as e:
+            self.logger.error(f"[{label}] {direction}: Error - {e}")
+            stats.increment_error()
+            try:
+                writer.close()
+                await writer.wait_closed()
+            except:
+                pass
+        
+        return bytes_count
+    
+    async def handle_client(self, 
+                          client_reader: asyncio.StreamReader,
+                          client_writer: asyncio.StreamWriter):
+        """
+        Handle a single client connection
+        """
+        # Get client address
+        client_addr = client_writer.get_extra_info('peername')
+        client_ip = client_addr[0]
+        client_port = client_addr[1]
+        
+        label = f"{client_ip}:{client_port}"
+        stats.increment_connection()
+        
+        self.logger.info(f"[{label}] ✓ NEW CLIENT CONNECTED (Active: {stats.active_connections})")
+        
+        try:
+            # Connect to backend database
+            try:
+                backend_reader, backend_writer = await asyncio.wait_for(
+                    asyncio.open_connection(BACKEND_HOST, BACKEND_PORT),
+                    timeout=10
+                )
+                self.logger.debug(f"[{label}] ✓ Connected to backend {BACKEND_HOST}:{BACKEND_PORT}")
+            
+            except asyncio.TimeoutError:
+                self.logger.error(f"[{label}] ✗ Backend connection timeout")
+                client_writer.close()
+                await client_writer.wait_closed()
+                return
+            
+            except ConnectionRefusedError:
+                self.logger.error(f"[{label}] ✗ Backend connection refused (DB down?)")
+                client_writer.close()
+                await client_writer.wait_closed()
+                return
+            
+            except Exception as e:
+                self.logger.error(f"[{label}] ✗ Backend connection error: {e}")
+                client_writer.close()
+                await client_writer.wait_closed()
+                return
+            
+            # Pipe data bidirectionally
+            c2b_task = asyncio.create_task(
+                self.pipe_data(client_reader, backend_writer, label, "C→B", client_ip, client_port)
+            )
+            b2c_task = asyncio.create_task(
+                self.pipe_data(backend_reader, client_writer, label, "B→C")
+            )
+            
+            # Wait for both to complete
+            c2b_bytes, b2c_bytes = await asyncio.gather(c2b_task, b2c_task)
+            
+            # Update stats
+            stats.add_bytes(c2b_bytes, b2c_bytes)
+            
+            self.logger.info(f"[{label}] ✓ CLOSED ({c2b_bytes} bytes ↓ | {b2c_bytes} bytes ↑)")
+        
+        except Exception as e:
+            self.logger.error(f"[{label}] ✗ Unexpected error: {e}")
+            stats.increment_error()
+        
+        finally:
+            try:
+                client_writer.close()
+                await client_writer.wait_closed()
+            except:
+                pass
+            stats.decrement_connection()
+    
     async def start(self):
-        server = await asyncio.start_server(
-            self.handle_client,
-            self.listen_host,
-            self.listen_port
-        )
-        logger.info(f"🛡️  SQL Data-Vault Interceptor Engine v2.0 listening on {self.listen_host}:{self.listen_port}")
-        logger.info(f"   Forwarding traffic securely to backend db {self.backend_host}:{self.backend_port}")
-        async with server:
-            await server.serve_forever()
+        """Start the proxy server"""
+        try:
+            self.server = await asyncio.start_server(
+                self.handle_client,
+                PROXY_LISTEN_HOST,
+                PROXY_LISTEN_PORT
+            )
+            
+            self.logger.info("=" * 60)
+            self.logger.info(f"🛡️  NEXUS-CYBER TCP PROXY STARTED")
+            self.logger.info(f"   Listen: {PROXY_LISTEN_HOST}:{PROXY_LISTEN_PORT}")
+            self.logger.info(f"   Backend: {BACKEND_HOST}:{BACKEND_PORT}")
+            self.logger.info(f"   Log: {PROXY_LOG_FILE}")
+            self.logger.info("=" * 60)
+            
+            async with self.server:
+                await self.server.serve_forever()
+        
+        except OSError as e:
+            self.logger.error(f"❌ Failed to start proxy: {e}")
+            self.logger.error(f"   Port {PROXY_LISTEN_PORT} might be in use")
+            sys.exit(1)
+        
+        except Exception as e:
+            self.logger.error(f"❌ Fatal error: {e}")
+            sys.exit(1)
+    
+    async def stop(self):
+        """Stop the proxy server"""
+        if self.server:
+            self.server.close()
+            await self.server.wait_closed()
+            
+            stats_dict = stats.get_stats()
+            self.logger.info("=" * 60)
+            self.logger.info("📊 FINAL STATISTICS")
+            self.logger.info(f"   Uptime: {stats_dict['uptime_seconds']:.1f}s")
+            self.logger.info(f"   Total Connections: {stats_dict['total_connections']}")
+            self.logger.info(f"   Bytes Received: {stats_dict['bytes_received'] / 1024 / 1024:.2f} MB")
+            self.logger.info(f"   Bytes Sent: {stats_dict['bytes_sent'] / 1024 / 1024:.2f} MB")
+            self.logger.info(f"   Total Errors: {stats_dict['total_errors']}")
+            self.logger.info(f"   Throughput: {stats_dict['throughput_mbps']:.2f} Mbps")
+            self.logger.info("=" * 60)
+
+# ===========================
+# MAIN ENTRY POINT
+# ===========================
 
 async def main():
-    interceptor = SQLInterceptor()
-    await interceptor.start()
+    """Main entry point"""
+    proxy = MySQLProxy()
+    try:
+        await proxy.start()
+    except asyncio.CancelledError:
+        await proxy.stop()
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        logger.info("Proxy stopped by user.")
+        logger.info("\n✓ Proxy stopped cleanly")
+        sys.exit(0)
+    except Exception as e:
+        logger.error(f"Fatal error: {e}")
+        sys.exit(1)
