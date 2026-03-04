@@ -1,0 +1,52 @@
+# ===========================
+# Nexus-Cyber Data-Vault Gateway
+# Python 3.10+ Required
+# ===========================
+
+# Core Web Framework
+flask==2.3.0
+flask-cors==4.0.0
+Werkzeug==2.3.0
+
+# Async & Networking
+aiofiles==23.1.0
+
+# Database
+mysql-connector-python==8.0.33
+pymysql==1.1.0
+SQLAlchemy==2.0.0
+
+# SQL Processing
+sqlparse==0.4.4
+
+# AI & LLM
+ollama==0.0.50
+
+# Security & Environment
+python-dotenv==1.0.0
+cryptography==41.0.0
+bcrypt==4.1.1
+
+# Logging & Monitoring
+python-json-logger==2.0.7
+
+# Testing
+pytest==7.4.0
+pytest-asyncio==0.21.0
+pytest-cov==4.1.0
+
+# Data Generation (for dummy data)
+faker==19.0.0
+
+# Utilities
+pyyaml==6.0
+requests==2.31.0
+click==8.1.7
+
+# Code Quality (optional, for development)
+black==23.9.1
+flake8==6.1.0
+pylint==3.0.0
+
+# Documentation (optional)
+sphinx==7.2.0

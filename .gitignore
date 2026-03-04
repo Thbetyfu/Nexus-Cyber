@@ -1,10 +1,71 @@
-venv/
-tetragon.json
-*.json.gz
-logs/
-quarantine/
-/tmp/*
-*.o
-*.tar.gz
-dist/
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Python
 __pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+logs/
+*.log
+*.log.*
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Archive
+archive/
+
+# Test coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Secrets (never commit these)
+config/secrets.yaml
+config/private_keys/*
