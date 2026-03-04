@@ -297,6 +297,13 @@ def analyze_file_dynamic(filepath):
     if decision == "BLOCK":
         print(f"[!] REFLEX BRAIN DETECTED THREAT: {filename}")
         set_keyboard_color("MALICIOUS")
+        alert_msg = (
+            f"🚨 *NEXUS-CYBER: THREAT TERMINATED* 🚨\n\n"
+            f"💀 *Target Destroyed:* `[WEB] {filename}`\n"
+            f"⏱️ *Time:* `{time.ctime()}`\n"
+            f"🛡️ *Action:* `BLOCK Sandbox Execution` via Reflex"
+        )
+        send_telegram_alert(alert_msg)
         with open(ALERT_FILE, 'a') as af:
             af.write(f"[{time.ctime()}] REFLEX BLOCK: {filename} from {target_ip} -> {detected_ip} ({location})\n")
     else:
@@ -367,6 +374,7 @@ def follow_logs():
                     print(f"[!] REFLEX BRAIN SYSCALL BLOCK: {binary_name}")
                     
                     # Automated Containment (Auto-Kill)
+                    kill_status = "Syscall Blocked (No PID)"
                     if pid:
                         try:
                             # Attempt to aggressively kill the malicious process
@@ -374,18 +382,22 @@ def follow_logs():
                             result = subprocess.run(kill_cmd, shell=True, check=False, capture_output=True)
                             if result.returncode == 0:
                                 print(f"[KILL] Process {pid} ({binary_name}) forcefully killed.")
-                                alert_msg = (
-                                    f"🚨 *NEXUS-CYBER: THREAT TERMINATED* 🚨\n\n"
-                                    f"💀 *Target Destroyed:* `{binary_name}`\n"
-                                    f"🔢 *PID:* `{pid}`\n"
-                                    f"⏱️ *Time:* `{time.ctime()}`\n"
-                                    f"🛡️ *Action:* `SIGKILL (-9)` via Reflex Brain"
-                                )
-                                send_telegram_alert(alert_msg)
+                                kill_status = "SIGKILL (-9) Success"
                             else:
                                 print(f"[KILL] Process {pid} may already be dead or unreachable.")
+                                kill_status = "Target Already Dead / Terminated"
                         except Exception as e:
                             print(f"[KILL ERROR] Failed to execute kill command on {pid}: {e}")
+                            kill_status = "SIGKILL Error"
+
+                    alert_msg = (
+                        f"🚨 *NEXUS-CYBER: THREAT TERMINATED* 🚨\n\n"
+                        f"💀 *Target Detect:* `{binary_name}`\n"
+                        f"🔢 *PID:* `{pid}`\n"
+                        f"⏱️ *Time:* `{time.ctime()}`\n"
+                        f"🛡️ *Action:* `{kill_status}` via Reflex"
+                    )
+                    send_telegram_alert(alert_msg)
 
                     set_keyboard_color("MALICIOUS")
                     try:
