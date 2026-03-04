@@ -1,7 +1,17 @@
 import asyncio
 import yaml
 import logging
+import sys
+import os
+
+# Allow imports from project root
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from sql_parser import SQLParser
+from sentinel_brain.reflex_brain import evaluate_sql
+from sentinel_brain.forensic_brain import forensic_analysis_task
+from executioner.connection_killer import drop_connection
+import threading
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("ProxyInterceptor")
@@ -38,10 +48,24 @@ class TCPProxy:
                         query = SQLParser.extract_query(data)
                         if query:
                             logger.info(f"[SQL] Client {client_addr}: {query}")
-                            # TODO: Phase 2 AI Integration
-                            # Here we would send `query` to Reflex Brain.
-                            # If malicious, drop connection instead of writing.
-                            # For now: Just log & forward it.
+                            # Send query to Reflex Brain asynchronously to not block event loop
+                            decision = await asyncio.to_thread(evaluate_sql, query)
+                            logger.info(f"[*] Reflex Brain Decision: {decision}")
+                            
+                            if decision == "BLOCK":
+                                logger.warning(f"[!!!] DROPPING MALICIOUS CONNECTION: {client_addr}")
+                                ip_addr = client_addr[0] if isinstance(client_addr, tuple) else "127.0.0.1"
+                                # Execute hardware ban
+                                drop_connection(ip_addr)
+                                
+                                # Launch Forensic analysis on background thread
+                                threading.Thread(target=forensic_analysis_task, args=(query, ip_addr, True)).start()
+                                
+                                # Break loop to stop forwarding and drop the connection
+                                break
+                            else:
+                                ip_addr = client_addr[0] if isinstance(client_addr, tuple) else "127.0.0.1"
+                                threading.Thread(target=forensic_analysis_task, args=(query, ip_addr, False)).start()
                             
                     destination_writer.write(data)
                     await destination_writer.drain()
