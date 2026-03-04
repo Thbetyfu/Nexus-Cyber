@@ -342,13 +342,31 @@ def follow_logs():
                     '"binary": "/usr/share/"', '"binary": "/usr/local/bin/ollama"',
                     '"binary": "/etc/"', '"binary": "/var/"', '"binary": "/snap/"', 
                     '"binary": "/run/"', '"binary": "/sys/"', '"binary": "/proc/"',
+                    
+                    # Core Linux Binaries
                     '"binary": "/usr/bin/gnome-', '"binary": "/usr/bin/Xwayland"',
                     '"binary": "/usr/bin/dbus"', '"binary": "/usr/bin/pulseaudio"',
                     '"binary": "/usr/bin/pkill"', '"binary": "/usr/share/code"',
                     '"binary": "/usr/bin/asusd"', '"binary": "/usr/bin/asusctl"',
                     '"binary": "/usr/bin/sudo"', '"binary": "/usr/bin/systemctl"',
                     '"binary": "/usr/bin/journalctl"', '"binary": "/usr/bin/grep"',
-                    '"binary": "/usr/bin/tail"', '"binary": "/usr/bin/git"'
+                    '"binary": "/usr/bin/tail"', '"binary": "/usr/bin/git"',
+                    '"binary": "/usr/bin/sh"', '"binary": "/usr/bin/bash"',
+                    '"binary": "/usr/bin/ps"', '"binary": "/usr/bin/cat"',
+                    '"binary": "/usr/bin/sed"', '"binary": "/usr/bin/awk"',
+                    '"binary": "/usr/bin/ls"', '"binary": "/usr/bin/rm"',
+                    '"binary": "/usr/bin/mkdir"', '"binary": "/usr/bin/touch"',
+                    '"binary": "/usr/bin/env"',
+                    '"binary": "/bin/sh"', '"binary": "/bin/bash"',
+                    '"binary": "/bin/ps"', '"binary": "/bin/cat"',
+
+                    # Common User App Executables
+                    '"binary": "/home/taqy/.vscode-server"',
+                    '"binary": "/home/taqy/.local/share/Steam"',
+                    '"binary": "exe"', '"binary": "wine"', '"binary": "proton"',
+                    '"binary": "language_server_linux_x64"',
+                    '"binary": "system76-power"', '"binary": "system76-scheduler"',
+                    '"binary": "antigravity"', '"binary": "code"'
                 ]
                 if any(item in log_data_str for item in system_whitelist):
                     continue
