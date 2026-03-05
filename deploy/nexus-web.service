@@ -1,0 +1,35 @@
+[Unit]
+Description=Nexus-Cyber Web Gateway
+After=network.target nexus-proxy.service
+Requires=nexus-proxy.service
+
+[Service]
+Type=simple
+User=nexus
+Group=nexus
+WorkingDirectory=/opt/nexus-cyber
+
+EnvironmentFile=/opt/nexus-cyber/.env
+
+ExecStart=/opt/nexus-cyber/venv/bin/python /opt/nexus-cyber/web_gateway.py
+
+Restart=always
+RestartSec=10
+StartLimitInterval=60s
+StartLimitBurst=3
+
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/nexus-cyber/logs /opt/nexus-cyber/.env
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=nexus-web
+
+LimitNOFILE=65535
+LimitNPROC=65535
+
+[Install]
+WantedBy=multi-user.target

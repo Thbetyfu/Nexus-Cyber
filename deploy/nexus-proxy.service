@@ -1,0 +1,41 @@
+[Unit]
+Description=Nexus-Cyber TCP Proxy
+After=network.target
+Wants=docker.service
+
+[Service]
+Type=simple
+User=nexus
+Group=nexus
+WorkingDirectory=/opt/nexus-cyber
+
+# Load environment variables
+EnvironmentFile=/opt/nexus-cyber/.env
+
+# Start command
+ExecStart=/opt/nexus-cyber/venv/bin/python /opt/nexus-cyber/interceptor/tcp_proxy.py
+
+# Restart policy
+Restart=always
+RestartSec=10
+StartLimitInterval=60s
+StartLimitBurst=3
+
+# Security settings
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/opt/nexus-cyber/logs /opt/nexus-cyber/.env
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=nexus-proxy
+
+# Resource limits
+LimitNOFILE=65535
+LimitNPROC=65535
+
+[Install]
+WantedBy=multi-user.target
