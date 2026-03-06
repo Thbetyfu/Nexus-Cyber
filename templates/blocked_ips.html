@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blocked IPs - Nexus-Cyber</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body>
+    <div class="navbar">
+        <div class="navbar-brand">
+            <h1>🛡️ Nexus-Cyber-Vault</h1>
+        </div>
+        <div class="navbar-menu">
+            <a href="/admin" class="nav-link">Dashboard</a>
+            <a href="/admin/incidents" class="nav-link">Incidents</a>
+            <a href="/admin/blocked-ips" class="nav-link active">Blocked IPs</a>
+            <a href="/logout" class="nav-link logout">Logout</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2 style="margin-bottom: 2rem; color: #f85149;">🚫 IP Warden - Blacklisted Adresses</h2>
+
+        <div class="live-queries">
+            <table class="live-table">
+                <thead>
+                    <tr>
+                        <th>IP Address</th>
+                        <th>Reason for Block</th>
+                        <th>Blocked At</th>
+                        <th style="text-align: right;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for ip in ips %}
+                    <tr>
+                        <td><code>{{ ip.ip_address }}</code></td>
+                        <td>{{ ip.reason or 'Threat Policy Breach' }}</td>
+                        <td>{{ ip.blocked_at }}</td>
+                        <td style="text-align: right;">
+                            <button onclick="unblockIP('{{ ip.ip_address }}')"
+                                style="background: none; border: 1px solid #f85149; color: #f85149; padding: 0.25rem 0.75rem; border-radius: 4px; cursor: pointer; font-size: 0.8rem;">
+                                Unblock
+                            </button>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="4" style="text-align: center; color: #8b949e; padding: 3rem;">
+                            No IP addresses are currently blacklisted.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        async function unblockIP(ip) {
+            if (!confirm(`Are you sure you want to unblock ${ip}?`)) return;
+
+            try {
+                const res = await fetch(`/api/unblock-ip/${ip}`, { method: 'POST' });
+                const result = await res.json();
+                if (result.success) {
+                    location.reload();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (err) {
+                alert('Request failed');
+            }
+        }
+    </script>
+</body>
+
+</html>

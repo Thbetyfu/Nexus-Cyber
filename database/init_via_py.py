@@ -17,12 +17,28 @@ conn = mysql.connector.connect(
 
 cursor = conn.cursor()
 
+# Split by semicolon but be careful with multi-line statements
+# For this simple script, splitting by ';' is mostly okay since standard SQL uses it.
 for statement in sql.split(';'):
-    if statement.strip():
+    stmt = statement.strip()
+    if stmt:
+        # Skip permission-related commands as ktp_user doesn't have them
+        if any(cmd in stmt.upper() for cmd in ["GRANT", "FLUSH PRIVILEGES"]):
+            print(f"Skipping permission command: {stmt[:50]}...")
+            continue
+            
         try:
-            cursor.execute(statement)
+            cursor.execute(stmt)
+            # Drain any results (especially for the SELECTs at the end)
+            while cursor.nextset():
+                pass
+            if cursor.with_rows:
+                cursor.fetchall()
         except Exception as e:
-            print(f"Skipping: {e}")
+            # We expect some "already exists" errors if re-running
+            if "already exists" not in str(e).lower() and "Duplicate entry" not in str(e).lower():
+                print(f"Error executing: {stmt[:50]}...")
+                print(f"Reason: {e}")
 
 cursor.close()
 conn.close()

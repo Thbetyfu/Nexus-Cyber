@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Incident Details - Nexus-Cyber</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .detail-card {
+            background-color: var(--secondary-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .forensic-block {
+            background-color: var(--primary-color);
+            border: 1px solid var(--border-color);
+            padding: 1.5rem;
+            border-radius: 6px;
+            overflow-x: auto;
+        }
+
+        pre {
+            color: #79c0ff;
+            font-family: monospace;
+            font-size: 0.9rem;
+            margin: 0;
+        }
+
+        .back-link {
+            color: #8b949e;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .back-link:hover {
+            color: var(--cyber-green);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="navbar">
+        <div class="navbar-brand">
+            <h1>🛡️ Nexus-Cyber-Vault</h1>
+        </div>
+        <div class="navbar-menu">
+            <a href="/admin" class="nav-link">Dashboard</a>
+            <a href="/admin/incidents" class="nav-link">Incidents</a>
+            <a href="/logout" class="nav-link logout">Logout</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <a href="/admin/incidents" class="back-link">← Back to Incidents</a>
+
+        {% if incident %}
+        <div class="detail-card">
+            <div class="detail-header">
+                <div>
+                    <h2 style="color: #f85149;">{{ incident.incident_type }}</h2>
+                    <p style="color: #8b949e;">ID: <code>#{{ incident.id }}</code> | Detected: {{ incident.detected_at
+                        }}
+                    </p>
+                </div>
+                <span class="severity-badge severity-{{ incident.severity.lower() }}"
+                    style="font-size: 1rem; padding: 0.5rem 1rem;">
+                    {{ incident.severity }}
+                </span>
+            </div>
+
+            <div
+                style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 2rem; margin-bottom: 2rem;">
+                <div>
+                    <h4 style="margin-bottom: 0.5rem; color: #8b949e; text-transform: uppercase; font-size: 0.75rem;">
+                        Source IP</h4>
+                    <p style="font-size: 1.25rem;"><code>{{ incident.source_ip }}</code></p>
+                </div>
+                <div>
+                    <h4 style="margin-bottom: 0.5rem; color: #8b949e; text-transform: uppercase; font-size: 0.75rem;">
+                        Status</h4>
+                    <p style="font-size: 1.25rem; color: #f85149;">ATTACK DETECTED</p>
+                </div>
+            </div>
+
+            <h3 style="margin-bottom: 1rem;">Summary</h3>
+            <p style="margin-bottom: 2rem;">{{ incident.summary or "A critical security anomaly was detected by the
+                real-time sentinel. Automatic defensive measures were engaged to protect the database vault." }}</p>
+
+            <h3 style="margin-bottom: 1rem;">🧬 AI Forensic Analysis Report</h3>
+            <div class="forensic-block">
+                {% if incident.forensic_data_json %}
+                <pre>{{ incident.forensic_data_json | tojson(indent=2) }}</pre>
+                {% else %}
+                <p style="color: #8b949e; font-style: italic;">Deep forensic analysis data is currently unavailable for
+                    this legacy entry.</p>
+                {% endif %}
+            </div>
+        </div>
+        {% else %}
+        <div class="detail-card">
+            <h2 style="color: #f85149;">Incident Not Found</h2>
+            <p>The requested security incident report could not be located in the vault.</p>
+        </div>
+        {% endif %}
+    </div>
+</body>
+
+</html>

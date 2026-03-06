@@ -16,12 +16,20 @@ import hashlib
 from datetime import datetime
 from typing import Optional, Tuple, Dict
 import json
+from dotenv import load_dotenv
 
+# Load environment variables
+load_dotenv()
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from database.db_config import DatabaseManager
 from interceptor.sql_parser import SQLParser
+from detection.rules import ThreatDetectionEngine, ThreatType
+from detection.verdict import VerdictEngine, VerdictAction
+from executioner.connection_killer import ConnectionKiller, HardwareAlerter, TelegramAlerter
+from executioner.firewall_rules import FirewallManager
+from sentinel_brain.dual_brain import DualBrain
 
 # ===========================
 # CONFIGURATION
@@ -102,126 +110,273 @@ stats = ProxyStats()
 # QUERY LOGGING
 # ===========================
 
-class QueryLogger:
-    """Log queries to database"""
-    
-    def __init__(self):
-        try:
-            self.db = DatabaseManager()
-            self.logger = logger
-        except Exception as e:
-            logger.error(f"Failed to initialize DB Manager: {e}")
-            self.db = None
-    
-    def log_query(self, 
-                  query: str,
-                  source_ip: str,
-                  source_port: int,
-                  execution_time_ms: int = 0):
-        """
-        Log query to database
-        """
-        if not self.db or not query:
-            return
-        
-        try:
-            # Sanitize query
-            safe_query = SQLParser.sanitize_query_for_logging(query)
-            
-            # Generate query hash for deduplication (optional, but requested in init_db script)
-            query_hash = hashlib.sha256(query.encode()).hexdigest()
-            
-            # Extract tables (for forensic info, matching init_db schema)
-            tables = SQLParser.extract_tables(query)
-            
-            # Log via DatabaseManager
-            # Note: DatabaseManager.log_query should handle risk_level and action_taken
-            query_id = self.db.log_query(
-                query=safe_query,
-                source_ip=source_ip,
-                risk_level='SAFE',  # Phase 2: all queries are SAFE
-                action_taken='FORWARD'
-            )
-            
-            logger.debug(f"Query logged (ID: {query_id}) from {source_ip}")
-        
-        except Exception as e:
-            logger.warning(f"Failed to log query: {e}")
+# QueryLogger removed - replaced by VerdictEngine and DatabaseManager.log_verdict
 
 # ===========================
 # PROXY CORE
 # ===========================
 
 class MySQLProxy:
-    """MySQL TCP Proxy"""
+    """MySQL TCP Proxy with Threat Detection"""
     
     def __init__(self):
         self.server = None
         self.logger = logger
-        self.query_logger = QueryLogger()
+        self.db_manager = DatabaseManager()
+        self.detection_engine = ThreatDetectionEngine()
+        self.verdict_engine = VerdictEngine()
+        self.killer = ConnectionKiller()           # ADDED
+        self.hardware_alerter = HardwareAlerter()
+        self.telegram_alerter = TelegramAlerter()
+        self.firewall_mgr = FirewallManager()
+        self.dual_brain = DualBrain()  # Unified AI Brain
     
     async def pipe_data(self, 
                        reader: asyncio.StreamReader, 
                        writer: asyncio.StreamWriter,
                        label: str,
-                       direction: str,
-                       client_ip: Optional[str] = None,
-                       client_port: Optional[int] = None) -> int:
+                       direction: str) -> int:
         """
-        Pipe data from reader to writer
+        Simple pipe data from reader to writer
         """
         bytes_count = 0
-        chunk_count = 0
-        
         try:
             while True:
-                # Read chunk from source
-                data = await reader.read(65536)  # 64KB chunks
-                
+                data = await reader.read(65536)
                 if not data:
-                    self.logger.debug(f"[{label}] {direction}: EOF reached")
                     break
-                
                 bytes_count += len(data)
-                chunk_count += 1
-                
-                # If C2B direction, try to extract and log query
-                if direction == "C→B" and client_ip:
-                    try:
-                        query = SQLParser.extract_query_from_buffer(data)
-                        if query:
-                            self.query_logger.log_query(query, client_ip, client_port or 0)
-                    except Exception as e:
-                        self.logger.debug(f"Parser error on chunk: {e}")
-                
-                # Write to destination
                 writer.write(data)
                 await writer.drain()
             
-            # Graceful close
             writer.close()
             try:
                 await writer.wait_closed()
             except:
                 pass
-            
-            self.logger.debug(f"[{label}] {direction}: Closed ({bytes_count} total bytes)")
-            
-        except asyncio.CancelledError:
-            self.logger.debug(f"[{label}] {direction}: Task cancelled")
-            raise
-        
         except Exception as e:
-            self.logger.error(f"[{label}] {direction}: Error - {e}")
-            stats.increment_error()
+            self.logger.debug(f"[{label}] {direction} pipe error: {e}")
+        return bytes_count
+
+    async def execute_verdict(self,
+                             verdict: Dict,
+                             source_ip: str,
+                             query: str,
+                             ai_verdict: Optional[Dict] = None) -> bool:
+        """
+        Execute verdict action
+        
+        Returns: Should close connection?
+        """
+        
+        action = verdict['action']
+        reason = verdict['reason']
+        
+        # UPGRADE VERDICT BASED ON AI (Qwen 2.5)
+        if ai_verdict and ai_verdict.get('risk_level') == 'CRITICAL' and action != VerdictAction.KILL.value:
+            self.logger.critical(f"[{source_ip}] 🧠 AI UPGRADE: Action upgraded to KILL based on Reflex Brain analysis!")
+            action = VerdictAction.KILL.value
+            reason = f"AI Upgrade: {ai_verdict.get('reasoning', reason)}"
+        
+        if action == VerdictAction.FORWARD.value:
+            # Allow query
+            return False
+        
+        elif action == VerdictAction.LOG.value:
+            # Log and allow
+            self.logger.info(f"[{source_ip}] LOG: {reason}")
+            return False
+        
+        elif action == VerdictAction.BLOCK.value:
+            # Block query (close connection)
+            self.logger.warning(f"[{source_ip}] 🚫 BLOCKING: {reason}")
+            
+            # Trigger warning alert
+            await self.hardware_alerter.trigger_alert("WARNING")
+            
+            # Send Telegram warning
+            await self.telegram_alerter.send_alert(
+                f"⚠️ Blocked query from {source_ip}\n\nQuery: {query[:100]}\n\nReason: {reason}",
+                severity="WARNING"
+            )
+            
+            return True  # Close connection
+        
+        elif action == VerdictAction.KILL.value:
+            # Kill connection and ban IP
+            self.logger.critical(f"[{source_ip}] 🔴 KILLING: {reason}")
+            
+            # Optimization: Trigger alerts and killing in background to avoid blocking proxy
+            async def run_kill_sequence():
+                try:
+                    # Trigger critical alert
+                    await self.hardware_alerter.trigger_alert("CRITICAL")
+                    
+                    # Send Telegram critical alert
+                    await self.telegram_alerter.send_alert(
+                        f"🔴 CRITICAL: Killed connection from {source_ip}\n\n"
+                        f"Query: {query[:100]}\n\n"
+                        f"Reason: {reason}\n\n"
+                        f"Action: IP BANNED",
+                        severity="CRITICAL"
+                    )
+                    
+                    # Kill connection and log success
+                    success, msg = await self.killer.kill_connection(source_ip, reason)
+                    
+                    # Log kill action to database
+                    try:
+                        self.db_manager.log_kill_action(
+                            source_ip=source_ip,
+                            reason=reason,
+                            query=query,
+                            success=success
+                        )
+                    except Exception as e:
+                        self.logger.error(f"Failed to log kill action to DB: {e}")
+                except Exception as e:
+                    self.logger.error(f"Kill sequence error: {e}")
+
+            # Fire and forget the kill sequence
+            asyncio.create_task(run_kill_sequence())
+            
+            return True  # Close connection immediately in proxy
+        
+        return False
+
+    async def pipe_with_detection(self,
+                               reader: asyncio.StreamReader, 
+                               writer: asyncio.StreamWriter,
+                               label: str,
+                               direction: str,
+                               client_ip: str,
+                               client_port: int) -> int:
+        """
+        Pipe data with query extraction and threat detection
+        """
+        bytes_count = 0
+        try:
+            while True:
+                data = await reader.read(65536)
+                if not data:
+                    break
+                
+                bytes_count += len(data)
+                
+                # Try to extract query
+                query = SQLParser.extract_query_from_buffer(data)
+                
+                if query:
+                    # Run detection
+                    detection_result = self.detection_engine.detect_threat(
+                        query=query,
+                        source_ip=client_ip,
+                        query_bytes=len(data)
+                    )
+                    
+                    # Generate verdict
+                    verdict = self.verdict_engine.generate_verdict(
+                        detection_result,
+                        client_ip
+                    )
+                    
+                    # Log verdict to file
+                    self.verdict_engine.log_verdict(verdict)
+                    
+                    # Log verdict to database
+                    try:
+                        self.db_manager.log_verdict(
+                            query=query,
+                            source_ip=client_ip,
+                            detection_result=detection_result,
+                            verdict=verdict
+                        )
+                    except Exception as e:
+                        self.logger.error(f"Failed to log verdict to DB: {e}")
+                    
+                    # DUAL-BRAIN AI ANALYST (Reflex + Forensic)
+                    # Optimization: If rules say FORWARD or LOG, run AI in background to avoid latency
+                    if verdict['action'] in [VerdictAction.FORWARD.value, VerdictAction.LOG.value]:
+                        asyncio.create_task(self.run_background_ai(
+                            query=query,
+                            source_ip=client_ip,
+                            detection_result=detection_result,
+                            rules_verdict=verdict,
+                            writer=writer
+                        ))
+                        # Rules decided to allow for now
+                        should_close = False
+                    else:
+                        # Rules already flagged it, wait for AI to potentially confirm/upgrade
+                        ai_verdict = await self.dual_brain.analyze_threat(
+                            query=query,
+                            source_ip=client_ip,
+                            detected_patterns=detection_result.matched_patterns
+                        )
+                        
+                        self.logger.info(f"[{client_ip}] 🧠 AI Verdict: {ai_verdict.get('severity')} ({ai_verdict.get('threat_type')})")
+                        
+                        # EXECUTE VERDICT (Rules + AI)
+                        should_close = await self.execute_verdict(
+                            verdict,
+                            client_ip,
+                            query,
+                            ai_verdict
+                        )
+                    
+                    if should_close:
+                        writer.close()
+                        try:
+                            await writer.wait_closed()
+                        except:
+                            pass
+                        return bytes_count
+                
+                # Forward to destination
+                writer.write(data)
+                await writer.drain()
+            
+            writer.close()
             try:
-                writer.close()
                 await writer.wait_closed()
             except:
                 pass
-        
+        except Exception as e:
+            self.logger.debug(f"[{label}] {direction} pipe error: {e}")
         return bytes_count
     
+    async def run_background_ai(self, query, source_ip, detection_result, rules_verdict, writer):
+        """Analyze threat in background and take retrospective action if needed"""
+        try:
+            ai_verdict = await self.dual_brain.analyze_threat(
+                query=query,
+                source_ip=source_ip,
+                detected_patterns=detection_result.matched_patterns
+            )
+            
+            # If AI finds it critical, execute a retrospective verdict (Banning IP)
+            if ai_verdict.get('severity') == 'CRITICAL':
+                self.logger.critical(f"[{source_ip}] 🧠 BACKGROUND AI DETECTED CRITICAL THREAT! Taking retrospective action.")
+                await self.execute_verdict(
+                    verdict=rules_verdict,
+                    source_ip=source_ip,
+                    query=query,
+                    ai_verdict=ai_verdict
+                )
+                
+                # Try to close the writer if it's still alive in this high-level connection
+                try:
+                    if not writer.is_closing():
+                        writer.close()
+                        await writer.wait_closed()
+                except:
+                    pass
+            elif ai_verdict.get('threat_detected'):
+                self.logger.info(f"[{source_ip}] 🧠 Background AI analysis complete: {ai_verdict.get('threat_type')} ({ai_verdict.get('severity')})")
+                
+        except Exception as e:
+            self.logger.error(f"Background AI processing error: {e}")
+
     async def handle_client(self, 
                           client_reader: asyncio.StreamReader,
                           client_writer: asyncio.StreamWriter):
@@ -267,7 +422,7 @@ class MySQLProxy:
             
             # Pipe data bidirectionally
             c2b_task = asyncio.create_task(
-                self.pipe_data(client_reader, backend_writer, label, "C→B", client_ip, client_port)
+                self.pipe_with_detection(client_reader, backend_writer, label, "C→B", client_ip, client_port)
             )
             b2c_task = asyncio.create_task(
                 self.pipe_data(backend_reader, client_writer, label, "B→C")

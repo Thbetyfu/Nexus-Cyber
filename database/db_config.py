@@ -119,6 +119,77 @@ class DatabaseManager:
             cursor.close()
             connection.close()
     
+    def log_verdict(self,
+                    query: str,
+                    source_ip: str,
+                    detection_result: Any,
+                    verdict: Dict) -> int:
+        """
+        Log threat detection verdict to database
+        """
+        connection = self.pool.get_connection()
+        cursor = connection.cursor()
+        
+        try:
+            insert_query = """
+            INSERT INTO query_audit_log
+            (query, source_ip, risk_level, action_taken, 
+             ai_verdict, confidence_score, detection_patterns)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """
+            
+            # Extract detection_result if it's a dataclass/object
+            if hasattr(detection_result, 'matched_patterns'):
+                patterns = detection_result.matched_patterns
+                confidence = detection_result.confidence
+            elif isinstance(detection_result, dict):
+                patterns = detection_result.get('matched_patterns', [])
+                confidence = detection_result.get('confidence', 0)
+            else:
+                patterns = []
+                confidence = 0
+                
+            verdict_json = json.dumps(verdict)
+            patterns_json = json.dumps(patterns)
+            
+            # Support both rules-based (dict or object) and AI-based formats
+            raw_risk = (verdict.get('risk_level') or verdict.get('severity', 'SAFE')).upper()
+            
+            # Map AI levels to DB ENUM ('SAFE','SUSPICIOUS','DANGEROUS','CRITICAL')
+            risk_mapping = {
+                'LOW': 'SUSPICIOUS',
+                'MEDIUM': 'SUSPICIOUS',
+                'HIGH': 'DANGEROUS',
+                'CRITICAL': 'CRITICAL',
+                'SAFE': 'SAFE',
+                'NONE': 'SAFE'
+            }
+            risk_level = risk_mapping.get(raw_risk, 'SUSPICIOUS')
+            
+            action_taken = verdict.get('action') or verdict.get('recommended_action', 'FORWARD')
+            
+            cursor.execute(insert_query, (
+                query,
+                source_ip,
+                risk_level,
+                action_taken,
+                verdict_json,
+                confidence,
+                patterns_json
+            ))
+            
+            connection.commit()
+            return cursor.lastrowid
+            
+        except Exception as e:
+            connection.rollback()
+            print(f"❌ Error logging verdict: {e}")
+            raise
+        
+        finally:
+            cursor.close()
+            connection.close()
+
     def log_incident(self,
                     incident_type: str,
                     severity: str,
@@ -258,6 +329,100 @@ class DatabaseManager:
             cursor.close()
             connection.close()
 
+    def get_dashboard_stats(self) -> Dict:
+        """Get summary statistics for dashboard"""
+        connection = self.pool.get_connection()
+        cursor = connection.cursor(dictionary=True)
+        
+        try:
+            stats = {}
+            
+            # Total queries in last 24h
+            cursor.execute("SELECT COUNT(*) as count FROM query_audit_log WHERE created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)")
+            stats['queries_24h'] = cursor.fetchone()['count']
+            
+            # Total threats (risk_level != 'SAFE') in last 24h
+            cursor.execute("SELECT COUNT(*) as count FROM query_audit_log WHERE risk_level != 'SAFE' AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)")
+            stats['threats_24h'] = cursor.fetchone()['count']
+            
+            # Currently blocked IPs
+            cursor.execute("SELECT COUNT(*) as count FROM blocked_ips WHERE unblock_at IS NULL OR unblock_at > NOW()")
+            stats['blocked_ips_count'] = cursor.fetchone()['count']
+            
+            return stats
+            
+        finally:
+            cursor.close()
+            connection.close()
+
+    def get_top_offenders(self, limit: int = 5) -> List[Dict]:
+        """Get IPs with most incidents"""
+        connection = self.pool.get_connection()
+        cursor = connection.cursor(dictionary=True)
+        
+        try:
+            query = """
+            SELECT source_ip, incidents_count, last_incident_at, reason
+            FROM blocked_ips
+            ORDER BY incidents_count DESC
+            LIMIT %s
+            """
+            cursor.execute(query, (limit,))
+            return cursor.fetchall()
+            
+        finally:
+            cursor.close()
+            connection.close()
+
+
+    def log_kill_action(self,
+                       source_ip: str,
+                       reason: str,
+                       query: str,
+                       success: bool) -> int:
+        """
+        Log IP kill/ban action to database
+        """
+        connection = self.pool.get_connection()
+        cursor = connection.cursor()
+        
+        try:
+            # Insert to incidents table
+            insert_query = """
+            INSERT INTO incidents
+            (incident_type, severity, source_ip, forensic_data, summary, response_action)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            """
+            
+            forensic_data = json.dumps({
+                'query': query,
+                'reason': reason,
+                'action_success': success,
+                'action_timestamp': datetime.now().isoformat()
+            })
+            
+            severity = 'CRITICAL' if success else 'HIGH'
+            
+            cursor.execute(insert_query, (
+                'SQL_INJECTION',  # incident_type
+                severity,
+                source_ip,
+                forensic_data,
+                reason,
+                'KILL_CONNECTION_AND_BAN_IP'
+            ))
+            
+            connection.commit()
+            return cursor.lastrowid
+            
+        except Exception as e:
+            connection.rollback()
+            print(f"❌ Error logging kill action: {e}")
+            raise
+        
+        finally:
+            cursor.close()
+            connection.close()
 
 # Test connectivity
 def test_connection():

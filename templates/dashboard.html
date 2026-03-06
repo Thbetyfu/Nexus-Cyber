@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus-Cyber Data-Vault Gateway - Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+</head>
+
+<body>
+    <div class="navbar">
+        <div class="navbar-brand">
+            <h1>🛡️ Nexus-Cyber-Vault</h1>
+        </div>
+        <div class="navbar-menu">
+            <a href="/admin" class="nav-link active">Dashboard</a>
+            <a href="/admin/incidents" class="nav-link">Incidents</a>
+            <a href="/admin/blocked-ips" class="nav-link">Blocked IPs</a>
+            <a href="/logout" class="nav-link logout">Logout</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Statistics Row -->
+        <div class="stats-container">
+            <div class="stat-card">
+                <div class="stat-value" id="total-queries">0</div>
+                <div class="stat-label">Total Queries</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value safe" id="safe-queries">0</div>
+                <div class="stat-label">Safe</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value warning" id="dangerous-queries">0</div>
+                <div class="stat-label">Dangerous</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value critical" id="critical-queries">0</div>
+                <div class="stat-label">Critical</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="blocked-ips">0</div>
+                <div class="stat-label">Blocked IPs</div>
+            </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="charts-container">
+            <div class="chart-card">
+                <h3>Threats per Hour (Last 24h)</h3>
+                <canvas id="threatsChart"></canvas>
+            </div>
+            <div class="chart-card">
+                <h3>Risk Distribution</h3>
+                <canvas id="threatTypeChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Live Queries Table -->
+        <div class="live-queries">
+            <h3>🔴 Live Query Stream</h3>
+            <div class="status-indicator" id="connection-status">● Connecting...</div>
+            <div style="overflow-x: auto;">
+                <table class="live-table">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Source IP</th>
+                            <th>Risk Level</th>
+                            <th>Action</th>
+                            <th>Confidence</th>
+                        </tr>
+                    </thead>
+                    <tbody id="queries-table">
+                        <tr>
+                            <td colspan="5">Waiting for data...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Recent Threats Alert -->
+        <div class="recent-threats">
+            <h3>⚠️ Critical Security Alerts</h3>
+            <div id="threats-list" class="threats-list">
+                <!-- Populated by JavaScript -->
+                <p style="color: #aaa;">No active threats detected.</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+</body>
+
+</html>

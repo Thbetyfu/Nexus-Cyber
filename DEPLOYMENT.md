@@ -138,7 +138,11 @@ sudo systemctl status nexus-datavault.service
 | Issue | Solution |
 |-------|----------|
 | Port 3306 already in use | `lsof -i :3306` and kill process |
-| MySQL connection refused | Check `docker-compose logs mysql` |
+| MySQL connection refused 
+
+
+
+| Check `docker-compose logs mysql` |
 | Python package error | `pip install --upgrade pip` then reinstall |
 | Permission denied | Add user to docker group: `sudo usermod -aG docker $USER` |
 

@@ -131,13 +131,29 @@
         </div>
 
         <!-- Warning Panel -->
-        <div class="bg-red-950 bg-opacity-30 border-l-4 border-red-600 p-3 md:p-4 mb-6 md:mb-8" id="warning-box">
+        <div class="bg-red-950 bg-opacity-30 border-l-4 border-red-600 p-3 md:p-4 mb-4" id="warning-box">
             <h3 class="text-red-500 font-bold mb-1 md:mb-2 uppercase tracking-wider text-sm md:text-base">[!] System
                 Status</h3>
             <p class="text-red-400 text-xs md:text-sm font-mono" id="status-text">
                 Monitoring SQL traffic. If a malicious packet is detected, the gateway will automatically drop the
                 connection.
             </p>
+        </div>
+
+        <!-- Stats Bar -->
+        <div class="grid grid-cols-3 gap-2 mb-6 md:mb-8" id="stats-bar">
+            <div class="bg-black border border-red-900 p-2 flex flex-col items-center">
+                <span class="text-[8px] text-gray-500 uppercase">Queries (24h)</span>
+                <span id="stat-queries" class="text-xl font-black text-red-500">0</span>
+            </div>
+            <div class="bg-black border border-red-900 p-2 flex flex-col items-center">
+                <span class="text-[8px] text-gray-500 uppercase">Threats (24h)</span>
+                <span id="stat-threats" class="text-xl font-black text-red-500">0</span>
+            </div>
+            <div class="bg-black border border-red-900 p-2 flex flex-col items-center">
+                <span class="text-[8px] text-gray-500 uppercase">Blocked IPs</span>
+                <span id="stat-blocked" class="text-xl font-black text-red-500">0</span>
+            </div>
         </div>
 
         <!-- Action Area -->
@@ -197,6 +213,13 @@
                     statusEl.className = "text-xs font-mono text-emerald-500";
                 } else {
                     statusEl.className = "text-xs font-mono text-red-500 animate-pulse";
+                }
+
+                // Update Stats
+                if (data.stats) {
+                    document.getElementById('stat-queries').innerText = data.stats.queries_24h || 0;
+                    document.getElementById('stat-threats').innerText = data.stats.threats_24h || 0;
+                    document.getElementById('stat-blocked').innerText = data.stats.blocked_ips_count || 0;
                 }
             } catch (e) { }
         }

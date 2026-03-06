@@ -11,6 +11,7 @@ __pycache__/
 .Python
 env/
 venv/
+.venv/
 ENV/
 build/
 develop-eggs/
@@ -53,6 +54,9 @@ logs/
 tmp/
 temp/
 *.tmp
+*.out
+cookies.txt
+test.pcap
 
 # OS
 .DS_Store

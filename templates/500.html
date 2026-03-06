@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>500 - Internal Error</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 5rem;
+            color: #f85149;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div>
+        <h1>500</h1>
+        <h2>System Kernel Anomaly</h2>
+        <p style="margin: 2rem 0; color: #8b949e;">An unexpected error occurred within the administration gateway.</p>
+        <a href="/" class="nav-link active" style="display: inline-block;">Reboot Session</a>
+    </div>
+</body>
+
+</html>

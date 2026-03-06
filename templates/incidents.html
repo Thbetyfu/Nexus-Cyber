@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Incidents - Nexus-Cyber</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body>
+    <div class="navbar">
+        <div class="navbar-brand">
+            <h1>🛡️ Nexus-Cyber-Vault</h1>
+        </div>
+        <div class="navbar-menu">
+            <a href="/admin" class="nav-link">Dashboard</a>
+            <a href="/admin/incidents" class="nav-link active">Incidents</a>
+            <a href="/admin/blocked-ips" class="nav-link">Blocked IPs</a>
+            <a href="/logout" class="nav-link logout">Logout</a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="header-row"
+            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+            <h2>🕵️ Global Incident History</h2>
+            <div class="pagination-info" style="color: #8b949e; font-size: 0.9rem;">
+                Showing <strong>{{ incidents|length }}</strong> of {{ total }} entries
+            </div>
+        </div>
+
+        {% if error %}
+        <div
+            style="background: rgba(248,81,73,0.1); color: #f85149; padding: 1rem; border-radius: 6px; border: 1px solid var(--border-color); margin-bottom: 1rem;">
+            Error loading data: {{ error }}
+        </div>
+        {% endif %}
+
+        <div class="live-queries">
+            <table class="live-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Incident Type</th>
+                        <th>Severity</th>
+                        <th>Source IP</th>
+                        <th>Detection Time</th>
+                        <th style="text-align: right;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for inc in incidents %}
+                    <tr>
+                        <td><code>#{{ inc.id }}</code></td>
+                        <td><strong>{{ inc.incident_type }}</strong></td>
+                        <td>
+                            <span class="severity-badge severity-{{ inc.severity.lower() }}">
+                                {{ inc.severity }}
+                            </span>
+                        </td>
+                        <td><code>{{ inc.source_ip }}</code></td>
+                        <td>{{ inc.detected_at }}</td>
+                        <td style="text-align: right;">
+                            <a href="/admin/incident/{{ inc.id }}"
+                                style="color: #58a6ff; text-decoration: none; font-weight: 500;">
+                                View Forensics →
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" style="text-align: center; color: #8b949e; padding: 3rem;">
+                            No recorded security incidents yet.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+
+</html>

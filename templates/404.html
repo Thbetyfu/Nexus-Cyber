@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 - Not Found</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 5rem;
+            color: #f85149;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div>
+        <h1>404</h1>
+        <h2>Access Denied or Page Missing</h2>
+        <p style="margin: 2rem 0; color: #8b949e;">The request did not match any routing patterns in the gateway.</p>
+        <a href="/" class="nav-link active" style="display: inline-block;">Return to Safety</a>
+    </div>
+</body>
+
+</html>
