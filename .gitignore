@@ -62,6 +62,20 @@ test.pcap
 .DS_Store
 Thumbs.db
 
+# Internal Documentation
+ROADMAP.md
+ARCHITECTURE.md
+VALIDATION_REPORT.md
+docs/RUNBOOK.md
+
+# Internal Test & Infrastructure Scripts
+comprehensive_test.sh
+final_checklist.sh
+verify_all.sh
+test_*.sh
+test_sqli*.py
+*.out
+
 # Archive
 archive/
 

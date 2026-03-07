@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 # CONFIGURATION
 # ===========================
 
-SUDO_PASSWORD = os.getenv('ADMIN_PASSWORD', 'default_password')
+SUDO_PASSWORD = os.getenv('ADMIN_PASSWORD', '<ADMIN_PASSWORD_NOT_SET>')
 ENABLE_IPTABLES = os.getenv('ENABLE_IPTABLES', 'true').lower() == 'true'
 BAN_DURATION_HOURS = int(os.getenv('BAN_DURATION_HOURS', 24))
 
