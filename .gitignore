@@ -1,89 +1,78 @@
-# Environment variables
-.env
-.env.local
-.env.*.local
 
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-venv/
-.venv/
-ENV/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-pip-wheel-metadata/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
 *~
-.DS_Store
-
-# Logs
-logs/
-*.log
-*.log.*
-
+*$py.class
+ARCHITECTURE.md
+archive/
+# Archive
+build/
+comprehensive_test.sh
+config/private_keys/*
+config/secrets.yaml
+cookies.txt
+.coverage
 # Database
 *.db
+develop-eggs/
+dist/
+docs/RUNBOOK.md
+downloads/
+.DS_Store
+*.egg
+*.egg-info/
+.eggs/
+eggs/
+.env
+env/
+ENV/
+# Environment variables
+.env.*.local
+.env.local
+final_checklist.sh
+htmlcov/
+# IDE
+.idea/
+.installed.cfg
+# Internal Documentation
+# Internal Test & Infrastructure Scripts
+legacy_backup/
+lib/
+lib64/
+*.log
+*.log.*
+logs/
+# Logs
+MANIFEST
+# OS
+*.out
+parts/
+pip-wheel-metadata/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+# Python
+.Python
+ROADMAP.md
+sdist/
+# Secrets (never commit these)
+share/python-wheels/
+*.so
 *.sqlite
 *.sqlite3
-
-# Temporary files
-tmp/
+*.swo
+*.swp
 temp/
-*.tmp
-*.out
-cookies.txt
+# Temporary files
+# Test coverage
 test.pcap
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Internal Documentation
-ROADMAP.md
-ARCHITECTURE.md
-VALIDATION_REPORT.md
-docs/RUNBOOK.md
-
-# Internal Test & Infrastructure Scripts
-comprehensive_test.sh
-final_checklist.sh
-verify_all.sh
 test_*.sh
 test_sqli*.py
-*.out
-
-# Archive
-archive/
-
-# Test coverage
-.coverage
-htmlcov/
-.pytest_cache/
-
-# Secrets (never commit these)
-config/secrets.yaml
-config/private_keys/*
+Thumbs.db
+*.tmp
+tmp/
+VALIDATION_REPORT.md
+var/
+.venv/
+venv/
+verify_all.sh
+.vscode/
+wheels/
